@@ -412,7 +412,7 @@ fn server_mainloop(
     assert!(grace_tx.send(()).is_ok());
 }
 
-pub(crate) fn server_regular(
+pub fn server_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     host: &str,
     port: &str,
@@ -450,7 +450,7 @@ pub(crate) fn server_regular(
     server_mainloop(stop_rx, grace_tx, senders, handles, thread);
 }
 
-pub(crate) fn server_async(
+pub fn server_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     host: &str,
     port: &str,

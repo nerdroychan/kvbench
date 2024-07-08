@@ -549,7 +549,7 @@ fn bench_phase_async(
     bench_mainloop(benchmark, barrier, phase, since, seq, counters, handles);
 }
 
-pub(crate) fn bench_regular(
+pub fn bench_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
     thread: impl Thread,
@@ -562,7 +562,7 @@ pub(crate) fn bench_regular(
     }
 }
 
-pub(crate) fn bench_async(
+pub fn bench_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
     thread: impl Thread,
