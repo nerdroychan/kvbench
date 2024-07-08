@@ -25,7 +25,7 @@ pub fn find_shard(key: &[u8], nr_shards: usize) -> usize {
 /// BaseHashMap is a wrapper around raw HashMap with variable-sized keys and values.
 /// It is used as the builing block of other types, like a shard, or a property
 /// in the delegation setup. Note that BaseHashMap is not KVMap.
-type BaseHashMap = HashMap<Box<[u8]>, Box<[u8]>>;
+pub type BaseHashMap = HashMap<Box<[u8]>, Box<[u8]>>;
 
 // {{{ nullmap
 
