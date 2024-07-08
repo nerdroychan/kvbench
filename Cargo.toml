@@ -1,0 +1,31 @@
+[package]
+name = "kvbench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "*", features = ["derive"] }
+bincode = "*"
+mio = { version = "*", features = ["net", "os-poll"] }
+dashmap = { version = "*", features = ["inline"] }
+parking_lot = "*"
+clap = { version = "=4.0.0", features = ["derive"] }
+rand = "*"
+log = "*"
+zipf = "*"
+serial_test = "*"
+env_logger = "*"
+jemallocator = "*"
+toml = "*"
+inventory = "*"
+core_affinity = "*"
+quanta = "*"
+hashbrown = "*"
+ahash = "*"
+
+[profile.release]
+debug = true
+
+[profile.release-lto]
+inherits = "release"
+lto = true
