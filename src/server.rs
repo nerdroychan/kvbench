@@ -551,7 +551,7 @@ pub fn cli() {
 mod tests {
     use crate::bench::BenchKVMap;
     use crate::client::KVClient;
-    use crate::map::*;
+    use crate::stores::*;
     use crate::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::mpsc::{channel, Receiver, Sender};
