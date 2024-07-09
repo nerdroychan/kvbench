@@ -12,12 +12,6 @@ use std::sync::Mutex;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
-/// TODO:
-/// server refactor
-/// latency metrics
-/// optimize internal rep of kv pairs
-/// tests
-
 // {{{ benchmap
 
 /// The bencher supports two types of maps: regular (sync) and async,
@@ -331,7 +325,10 @@ fn bench_worker_regular(
     barrier: Arc<Barrier>,
     counter: Arc<Mutex<u64>>,
     thread_info: (usize, usize),
+    thread: impl Thread,
 ) {
+    thread.pin(thread_info.0);
+
     let mut handle = map.handle();
     let mut rng = rand::thread_rng();
     let mut workload = Workload::new(&benchmark.wopt, Some(thread_info));
@@ -371,7 +368,10 @@ fn bench_worker_async(
     barrier: Arc<Barrier>,
     counter: Arc<Mutex<u64>>,
     thread_info: (usize, usize),
+    thread: impl Thread,
 ) {
+    thread.pin(thread_info.0);
+
     let responder = Rc::new(RefCell::new(Vec::<Response>::new()));
     let mut handle = map.handle(responder.clone());
     let mut rng = rand::thread_rng();
@@ -514,8 +514,9 @@ fn bench_phase_regular(
         let barrier = barrier.clone();
         let counter = counters[t].clone();
         let thread_info = (t, benchmark.threads);
+        let worker_thread = thread.clone();
         let handle = thread.spawn(move || {
-            bench_worker_regular(map, benchmark, barrier, counter, thread_info);
+            bench_worker_regular(map, benchmark, barrier, counter, thread_info, worker_thread);
         });
         handles.push(handle);
     }
@@ -541,8 +542,9 @@ fn bench_phase_async(
         let barrier = barrier.clone();
         let counter = counters[t].clone();
         let thread_info = (t, benchmark.threads);
+        let worker_thread = thread.clone();
         let handle = thread.spawn(move || {
-            bench_worker_async(map, benchmark, barrier, counter, thread_info);
+            bench_worker_async(map, benchmark, barrier, counter, thread_info, worker_thread);
         });
         handles.push(handle);
     }

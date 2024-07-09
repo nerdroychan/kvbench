@@ -17,6 +17,8 @@ pub trait Thread: Send + Clone + 'static {
     fn spawn(&self, f: impl FnOnce() + Send + 'static) -> Self::JoinHandle;
 
     fn yield_now(&self);
+
+    fn pin(&self, core: usize);
 }
 
 #[derive(Clone)]
@@ -37,5 +39,10 @@ impl Thread for DefaultThread {
 
     fn yield_now(&self) {
         std::thread::yield_now();
+    }
+
+    fn pin(&self, core: usize) {
+        let nr_cores = core_affinity::get_core_ids().unwrap().len();
+        core_affinity::set_for_current(core_affinity::CoreId { id: core % nr_cores });
     }
 }

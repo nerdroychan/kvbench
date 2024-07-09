@@ -305,6 +305,8 @@ fn server_worker_regular(
     counter: Arc<AtomicUsize>,
     thread: impl Thread,
 ) {
+    thread.pin(worker_id);
+
     let (mut events, mut smap, mut poll) = server_worker_common();
     debug!("Server worker {} is ready", worker_id);
 
@@ -348,6 +350,8 @@ fn server_worker_async(
     counter: Arc<AtomicUsize>,
     thread: impl Thread,
 ) {
+    thread.pin(worker_id);
+
     let (mut events, mut smap, mut poll) = server_worker_common();
     debug!("Server worker {} is ready", worker_id);
 
