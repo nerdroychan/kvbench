@@ -195,6 +195,7 @@ fn server_worker_regular_main(
     events: &mut Events,
     smap: &mut StreamMap,
     handle: &mut Box<dyn KVMapHandle>,
+    thread: &impl Thread,
 ) {
     for (_, connection) in smap.iter_mut() {
         assert!(connection.writer().flush().is_ok());
@@ -215,6 +216,7 @@ fn server_worker_regular_main(
                 panic!("Server worker {} receives non-exist event", worker_id);
             }
         }
+        thread.yield_now();
     }
 }
 
@@ -223,6 +225,7 @@ fn server_worker_async_main(
     poll: &mut Poll,
     events: &mut Events,
     smap: &mut StreamMap,
+    thread: &impl Thread,
 ) {
     for (_, connection) in smap.iter_mut() {
         let (writer, handle) = connection.handle();
@@ -246,6 +249,7 @@ fn server_worker_async_main(
                 panic!("Server worker {} receives non-exist event", worker_id);
             }
         }
+        thread.yield_now();
     }
 }
 
@@ -322,7 +326,14 @@ fn server_worker_regular(
                 }
             }
         }
-        server_worker_regular_main(worker_id, &mut poll, &mut events, &mut smap, &mut handle);
+        server_worker_regular_main(
+            worker_id,
+            &mut poll,
+            &mut events,
+            &mut smap,
+            &mut handle,
+            &thread,
+        );
         thread.yield_now();
     }
 }
@@ -358,7 +369,7 @@ fn server_worker_async(
                 }
             }
         }
-        server_worker_async_main(worker_id, &mut poll, &mut events, &mut smap);
+        server_worker_async_main(worker_id, &mut poll, &mut events, &mut smap, &thread);
         thread.yield_now();
     }
 }
