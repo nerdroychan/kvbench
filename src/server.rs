@@ -88,7 +88,7 @@ struct RequestReader(BufReader<RcTcpStream>);
 
 impl RequestReader {
     fn new(stream: RcTcpStream) -> Self {
-        Self(BufReader::with_capacity(8usize << 20, stream))
+        Self(BufReader::new(stream))
     }
 }
 
@@ -114,7 +114,7 @@ struct ResponseWriter(RefCell<BufWriter<RcTcpStream>>);
 
 impl ResponseWriter {
     fn new(stream: RcTcpStream) -> Self {
-        Self(RefCell::new(BufWriter::with_capacity(8usize << 20, stream)))
+        Self(RefCell::new(BufWriter::new(stream)))
     }
 }
 

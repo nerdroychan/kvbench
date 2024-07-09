@@ -17,8 +17,8 @@ impl KVClient {
                     panic!("KVClient fails to clone a tcp stream: {}", e);
                 });
                 Some(KVClient {
-                    request_writer: BufWriter::with_capacity(8usize << 20, s),
-                    response_reader: BufReader::with_capacity(8usize << 20, s2),
+                    request_writer: BufWriter::new(s),
+                    response_reader: BufReader::new(s2),
                 })
             }
             Err(_) => None,
