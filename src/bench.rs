@@ -4,11 +4,11 @@ use crate::*;
 use clap::Parser;
 use hashbrown::HashMap;
 use log::debug;
+use parking_lot::Mutex;
 use quanta::Instant;
 use serde::Deserialize;
 use std::fs::read_to_string;
 use std::rc::Rc;
-use std::sync::Mutex;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
@@ -294,7 +294,7 @@ fn bench_phase_should_break(
     len: &Length,
     count: &u64,
     start: &Instant,
-    workload: &Workload,
+    workload: &mut Workload,
 ) -> bool {
     match len {
         Length::Count(c) => {
@@ -312,6 +312,7 @@ fn bench_phase_should_break(
         }
         Length::Exhaust => {
             if workload.is_exhausted() {
+                workload.reset();
                 return true;
             }
         }
@@ -336,7 +337,7 @@ fn bench_worker_regular(
         let mut count = 0u64;
         // first sync, wait for main thread complete collecting data
         barrier.wait();
-        *counter.lock().unwrap() = 0u64; // reset
+        *counter.lock() = 0u64; // reset
         let start = Instant::now();
         // start benchmark
         loop {
@@ -351,12 +352,12 @@ fn bench_worker_regular(
             }
             count += 1;
             // check if we need to break
-            if bench_phase_should_break(&benchmark.len, &count, &start, &workload) {
+            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
                 break;
             }
         }
         // after the loop, update counter
-        *counter.lock().unwrap() = count;
+        *counter.lock() = count;
         // barrier 2
         barrier.wait();
     }
@@ -384,7 +385,7 @@ fn bench_worker_async(
         let mut count = 0u64;
         // first sync, wait for main thread complete collecting data
         barrier.wait();
-        *counter.lock().unwrap() = 0u64; // reset
+        *counter.lock() = 0u64; // reset
         let start = Instant::now();
         // start benchmark
         loop {
@@ -399,7 +400,7 @@ fn bench_worker_async(
                 // otherwise the last check may fail because the time check is after a certain
                 // interval, but the mod is never 0
                 count += 1;
-                if bench_phase_should_break(&benchmark.len, &count, &start, &workload) {
+                if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
                     break;
                 }
             }
@@ -416,12 +417,12 @@ fn bench_worker_async(
                     break;
                 }
             }
-            if bench_phase_should_break(&benchmark.len, &count, &start, &workload) {
+            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
                 break;
             }
         }
         // after the loop, update counter
-        *counter.lock().unwrap() = count;
+        *counter.lock() = count;
         // barrier 2
         barrier.wait();
     }
@@ -457,7 +458,7 @@ fn bench_mainloop(
         // collecting data
         let mut c = 0;
         for i in counters.iter() {
-            c += *i.lock().unwrap();
+            c += *i.lock();
         }
         if benchmark.report == ReportMode::Repeat || benchmark.report == ReportMode::All {
             println!(
@@ -612,3 +613,52 @@ pub fn cli() {
 }
 
 // }}} cli
+
+// {{{ tests
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EXAMPLE_BENCH: &str = r#"
+        [global]
+        threads = 8
+        repeat = 5
+        klen = 8
+        vlen = 16
+        kmin = 0
+        kmax = 1000
+
+        [[benchmark]]
+        set_perc = 100
+        get_perc = 0
+        repeat = 1
+        dist = "incrementp"
+
+        [[benchmark]]
+        timeout = 0.2
+        set_perc = 50
+        get_perc = 50
+        dist = "zipfian"
+
+        [[benchmark]]
+        timeout = 0.2
+        set_perc = 50
+        get_perc = 50
+        dist = "uniform"
+    "#;
+
+    #[test]
+    fn example() {
+        const MAP: &str = r#"
+            [map]
+            name = "rwlock_hashmap"
+            shards = 1024
+        "#;
+        let opt = MAP.to_string() + "\n" + EXAMPLE_BENCH;
+        let (map, phases) = init(&opt);
+        map.bench(&phases);
+    }
+}
+
+// }}} tests

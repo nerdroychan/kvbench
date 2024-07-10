@@ -196,6 +196,10 @@ impl Workload {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.kgen.serial = 0;
+    }
+
     pub fn is_exhausted(&self) -> bool {
         self.kgen.serial == (self.kgen.max - self.kgen.min)
     }
