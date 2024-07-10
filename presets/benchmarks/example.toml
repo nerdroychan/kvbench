@@ -1,0 +1,25 @@
+[global]
+threads = 8
+repeat = 5
+klen = 8
+vlen = 16
+kmin = 0
+kmax = 1000
+
+[[benchmark]]
+set_perc = 100
+get_perc = 0
+repeat = 1
+dist = "incrementp"
+
+[[benchmark]]
+timeout = 0.2
+set_perc = 50
+get_perc = 50
+dist = "zipfian"
+
+[[benchmark]]
+timeout = 0.2
+set_perc = 50
+get_perc = 50
+dist = "uniform"

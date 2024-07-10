@@ -1,0 +1,3 @@
+[map]
+name = "mutex_hashmap"
+shards = 1024

@@ -620,44 +620,51 @@ pub fn cli() {
 mod tests {
     use super::*;
 
-    const EXAMPLE_BENCH: &str = r#"
-        [global]
-        threads = 8
-        repeat = 5
-        klen = 8
-        vlen = 16
-        kmin = 0
-        kmax = 1000
+    const EXAMPLE_BENCH: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/presets/benchmarks/example.toml"
+    ));
 
-        [[benchmark]]
-        set_perc = 100
-        get_perc = 0
-        repeat = 1
-        dist = "incrementp"
-
-        [[benchmark]]
-        timeout = 0.2
-        set_perc = 50
-        get_perc = 50
-        dist = "zipfian"
-
-        [[benchmark]]
-        timeout = 0.2
-        set_perc = 50
-        get_perc = 50
-        dist = "uniform"
-    "#;
-
-    #[test]
-    fn example() {
-        const MAP: &str = r#"
-            [map]
-            name = "rwlock_hashmap"
-            shards = 1024
-        "#;
-        let opt = MAP.to_string() + "\n" + EXAMPLE_BENCH;
+    fn example(map_opt: &str) {
+        let opt = map_opt.to_string() + "\n" + EXAMPLE_BENCH;
         let (map, phases) = init(&opt);
         map.bench(&phases);
+    }
+
+    #[test]
+    fn example_null() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/null.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_mutex() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/mutex_hashmap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_rwlock() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/rwlock_hashmap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_dashmap() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/dashmap.toml"
+        ));
+        example(OPT);
     }
 }
 
