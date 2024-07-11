@@ -127,6 +127,35 @@ struct BenchmarkOpt {
     workload: WorkloadOpt,
 }
 
+impl BenchmarkOpt {
+    /// Internal function called after all global options are applied and when all the options are
+    /// set. This will test if the opt can be a valid benchmark. It does not check the workload's
+    /// configuration, as it will be checked when a workload instance is created.
+    fn sanity(&self) {
+        // these must be present, so `unwrap` won't panic.
+        assert!(
+            *self.threads.as_ref().unwrap() > 0,
+            "threads should be positive if given"
+        );
+        assert!(
+            *self.repeat.as_ref().unwrap() > 0,
+            "repeat should be positive if given"
+        );
+        match self.report.as_ref().unwrap().as_str() {
+            "hidden" | "phase" | "finish" | "all" => {}
+            _ => panic!("report mode should be one of: hidden, phase, finish, all"),
+        }
+        assert!(
+            *self.qd.as_ref().unwrap() > 0,
+            "queue depth should be positive if given"
+        );
+        assert!(
+            *self.batch.as_ref().unwrap() > 0,
+            "queue depth should be positive if given"
+        );
+    }
+}
+
 /// Instantiated from BenchmarkOpt
 #[derive(Debug)]
 pub struct Benchmark {
@@ -145,6 +174,7 @@ impl Benchmark {
     /// The constructor of Benchmark expects all fields have their values, the struct should
     /// contain either its own parameters, or carry the default parameters.
     fn new(opt: &BenchmarkOpt) -> Self {
+        opt.sanity();
         let threads = opt.threads.unwrap();
         let repeat = opt.repeat.unwrap();
         let qd = opt.qd.unwrap();
