@@ -119,7 +119,7 @@ struct BenchmarkOpt {
     timeout: Option<f32>,
     /// Fallback bound when timeout is not given.
     ops: Option<u64>,
-    /// Report mode: "hidden", "phase", "finish", "all"
+    /// Report mode: "hidden", "repeat", "finish", "all"
     report: Option<String>,
     /// Max depth of queue for each worker (async only)
     qd: Option<usize>,
@@ -145,8 +145,8 @@ impl BenchmarkOpt {
             "repeat should be positive if given"
         );
         match self.report.as_ref().unwrap().as_str() {
-            "hidden" | "phase" | "finish" | "all" => {}
-            _ => panic!("report mode should be one of: hidden, phase, finish, all"),
+            "hidden" | "repeat" | "finish" | "all" => {}
+            _ => panic!("report mode should be one of: hidden, repeat, finish, all"),
         }
         assert!(
             *self.qd.as_ref().unwrap() > 0,
