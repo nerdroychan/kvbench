@@ -348,7 +348,6 @@ fn bench_phase_should_break(
         }
         Length::Exhaust => {
             if workload.is_exhausted() {
-                workload.reset();
                 return true;
             }
         }
@@ -389,6 +388,7 @@ fn bench_worker_regular(
             count += 1;
             // check if we need to break
             if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
+                workload.reset();
                 break;
             }
         }
@@ -444,7 +444,12 @@ fn bench_worker_async(
             let len = requests.len();
             handle.submit(&requests);
             pending += len;
-            // use a loop to make sure that pending is under qd
+            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
+                workload.reset();
+                break;
+            }
+            // use a loop to make sure that pending is under qd, only drain the handle if the bench
+            // phase is not ending
             loop {
                 handle.drain();
                 let responses = responder.replace_with(|_| Vec::new());
@@ -452,9 +457,6 @@ fn bench_worker_async(
                 if pending <= benchmark.qd {
                     break;
                 }
-            }
-            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
-                break;
             }
         }
         // after the loop, update counter
@@ -674,6 +676,15 @@ mod tests {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_null_async() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/null_async.toml"
         ));
         example(OPT);
     }
