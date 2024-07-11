@@ -2,6 +2,8 @@ use crate::thread::{JoinHandle, Thread};
 use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
 use clap::Parser;
+use figment::providers::{Env, Format, Toml};
+use figment::Figment;
 use hashbrown::HashMap;
 use log::debug;
 use parking_lot::Mutex;
@@ -11,6 +13,7 @@ use std::fs::read_to_string;
 use std::rc::Rc;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
+use toml::Table;
 
 // {{{ benchmap
 
@@ -41,11 +44,11 @@ impl BenchKVMap {
 /// When a new kvmap is added, we use the inventory crate to dynamically register them.
 pub struct Registry<'a> {
     name: &'a str,
-    constructor: fn(&toml::Table) -> BenchKVMap,
+    constructor: fn(&Table) -> BenchKVMap,
 }
 
 impl<'a> Registry<'a> {
-    pub const fn new(name: &'a str, constructor: fn(&toml::Table) -> BenchKVMap) -> Self {
+    pub const fn new(name: &'a str, constructor: fn(&Table) -> BenchKVMap) -> Self {
         Self { name, constructor }
     }
 }
@@ -58,13 +61,13 @@ inventory::collect!(Registry<'static>);
 pub(crate) struct BenchKVMapOpt {
     name: String,
     #[serde(flatten)]
-    opt: toml::Table,
+    opt: Table,
 }
 
 impl BenchKVMap {
     pub(crate) fn new(opt: &BenchKVMapOpt) -> BenchKVMap {
         // construct the hashmap.. this will be done every time
-        let mut registered: HashMap<&'static str, fn(&toml::Table) -> BenchKVMap> = HashMap::new();
+        let mut registered: HashMap<&'static str, fn(&Table) -> BenchKVMap> = HashMap::new();
         for r in inventory::iter::<Registry> {
             debug!("Adding supported kvmap: {}", r.name);
             assert!(registered.insert(r.name, r.constructor).is_none()); // no existing name
@@ -296,7 +299,11 @@ struct BenchmarkGroupOpt {
 // {{{ bencher
 
 pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
-    let opt: BenchmarkGroupOpt = toml::from_str(text).unwrap();
+    let opt: BenchmarkGroupOpt = Figment::new()
+        .merge(Toml::string(text))
+        .merge(Env::raw())
+        .extract()
+        .unwrap();
     debug!(
         "Creating benchmark group with the following configurations: {:?}",
         opt
@@ -319,7 +326,6 @@ pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
     (map, phases)
 }
 
-#[inline]
 fn bench_phase_should_break(
     len: &Length,
     count: &u64,
@@ -638,6 +644,7 @@ pub fn cli() {
         let b = args.benchmark_file.clone().unwrap();
         read_to_string(m.as_str()).unwrap() + "\n" + &read_to_string(b.as_str()).unwrap()
     };
+
     let (map, phases) = init(&opt);
     map.bench(&phases);
 }
@@ -656,6 +663,7 @@ mod tests {
     ));
 
     fn example(map_opt: &str) {
+        let _ = env_logger::try_init();
         let opt = map_opt.to_string() + "\n" + EXAMPLE_BENCH;
         let (map, phases) = init(&opt);
         map.bench(&phases);

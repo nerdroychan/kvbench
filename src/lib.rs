@@ -1,6 +1,3 @@
-#![feature(vec_into_raw_parts)]
-#![feature(ptr_metadata)]
-
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;

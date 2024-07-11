@@ -1,4 +1,6 @@
 use crate::Operation;
+use figment::providers::{Env, Format, Toml};
+use figment::Figment;
 use rand::distributions::{Distribution, Uniform, WeightedIndex};
 use rand::Rng;
 use serde::Deserialize;
@@ -180,7 +182,11 @@ impl Workload {
     }
 
     pub fn new_from_toml_str(text: &str, thread_info: Option<(usize, usize)>) -> Self {
-        let opt: WorkloadOpt = toml::from_str(text).unwrap();
+        let opt: WorkloadOpt = Figment::new()
+            .merge(Toml::string(text))
+            .merge(Env::raw())
+            .extract()
+            .unwrap();
         Self::new(&opt, thread_info)
     }
 
@@ -324,7 +330,6 @@ mod tests {
                    dist = "zipfian"
                    kmin = 0
                    kmax = 12345"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let w = Workload::new_from_toml_str(s, None);
         assert_eq!(w.kgen.min, 0);
 
@@ -336,7 +341,6 @@ mod tests {
                    kmin = 0
                    kmax = 12345
                    zipf_theta = 1.0"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let w = Workload::new_from_toml_str(s, None);
         assert_eq!(w.kgen.min, 0);
     }
@@ -351,7 +355,6 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let _ = Workload::new_from_toml_str(s, None);
     }
 
@@ -363,7 +366,6 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let _ = Workload::new_from_toml_str(s, None);
     }
 
@@ -377,7 +379,6 @@ mod tests {
                    dist = "uniform"
                    kmin = 5
                    kmax = 1"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let _ = Workload::new_from_toml_str(s, None);
     }
 
@@ -391,7 +392,6 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _: WorkloadOpt = toml::from_str(s).unwrap();
         let _ = Workload::new_from_toml_str(s, None);
     }
 

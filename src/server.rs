@@ -4,6 +4,8 @@ use crate::thread::{JoinHandle, Thread};
 use crate::*;
 use crate::{AsyncKVMap, AsyncKVMapHandle, KVMap, KVMapHandle, Operation, Request};
 use clap::Parser;
+use figment::providers::{Env, Format, Toml};
+use figment::Figment;
 use hashbrown::HashMap;
 use log::debug;
 use mio::net::TcpStream;
@@ -535,7 +537,11 @@ pub fn cli() {
     let nr_workers = args.workers;
 
     let opt: String = read_to_string(args.map_file.as_ref().unwrap().as_str()).unwrap();
-    let opt: ServerMapOpt = toml::from_str(&opt).unwrap();
+    let opt: ServerMapOpt = Figment::new()
+        .merge(Toml::string(&opt))
+        .merge(Env::raw())
+        .extract()
+        .unwrap();
     let map = BenchKVMap::new(&opt.map);
 
     let (_stop_tx, stop_rx) = channel();
