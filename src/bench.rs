@@ -139,7 +139,7 @@ pub struct Benchmark {
     wopt: WorkloadOpt,
 }
 
-const TIME_CHECK_INTERVAL: u64 = 128;
+const TIME_CHECK_INTERVAL: u64 = 32;
 
 impl Benchmark {
     /// The constructor of Benchmark expects all fields have their values, the struct should
@@ -163,7 +163,7 @@ impl Benchmark {
             "repeat" => ReportMode::Repeat,
             "finish" => ReportMode::Finish,
             "all" => ReportMode::All,
-            _ => unreachable!(),
+            _ => panic!("Invalid report mode provided"),
         };
         let wopt = opt.workload.clone();
         Self {
