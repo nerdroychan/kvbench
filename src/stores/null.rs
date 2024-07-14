@@ -37,26 +37,26 @@ inventory::submit! {
     Registry::new("nullmap", NullMap::new_benchkvmap)
 }
 
-struct NullMapAsyncHandle(usize, Rc<dyn AsyncResponder>);
+struct NullMapAsyncHandle(Vec<usize>, Rc<dyn AsyncResponder>);
 
 impl AsyncKVMap for NullMap {
     fn handle(&self, responder: Rc<dyn AsyncResponder>) -> Box<dyn AsyncKVMapHandle> {
-        Box::new(NullMapAsyncHandle(0, responder.clone()))
+        Box::new(NullMapAsyncHandle(Vec::new(), responder.clone()))
     }
 }
 
 impl AsyncKVMapHandle for NullMapAsyncHandle {
     fn drain(&mut self) {
-        let n = self.0;
-        for _ in 0..n {
-            self.1.callback(Response { id: 0, data: None });
+        for i in self.0.iter() {
+            self.1.callback(Response { id: *i, data: None });
         }
-        self.0 -= n;
+        self.0.clear();
     }
 
     fn submit(&mut self, requests: &Vec<Request>) {
-        let n = requests.len();
-        self.0 += n;
+        for r in requests.iter() {
+            self.0.push(r.id);
+        }
     }
 }
 
