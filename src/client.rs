@@ -68,7 +68,7 @@ impl KVClient {
         responses
     }
 
-    pub fn set(&mut self, key: &[u8], value: &[u8]) -> Result<(), ()> {
+    pub fn set(&mut self, key: &[u8], value: &[u8]) {
         let mut requests = Vec::<Request>::with_capacity(1);
         let op = Operation::Set {
             key: key.into(),
@@ -81,13 +81,10 @@ impl KVClient {
         assert_eq!(responses.len(), 1);
         let response = responses.pop().unwrap();
         assert_eq!(response.id, 0);
-        match response.data {
-            Some(_) => Err(()),
-            None => Ok(()),
-        }
+        assert!(response.data.is_none());
     }
 
-    pub fn get(&mut self, key: &[u8]) -> Result<Box<[u8]>, ()> {
+    pub fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
         let mut requests = Vec::<Request>::with_capacity(1);
         let op = Operation::Get { key: key.into() };
         requests.push(Request { id: 0, op });
@@ -98,8 +95,8 @@ impl KVClient {
         let response = responses.pop().unwrap();
         assert_eq!(response.id, 0);
         match response.data {
-            Some(v) => Ok(v),
-            None => Err(()),
+            Some(v) => Some(v),
+            None => None,
         }
     }
 }

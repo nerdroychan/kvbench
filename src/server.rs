@@ -604,10 +604,11 @@ mod tests {
         let mut client = KVClient::new(&host, &port)
             .unwrap_or_else(|| panic!("failed to unwrap client instance"));
 
-        assert!(client.set(b"foo", b"bar").is_ok());
+        client.set(b"foo", b"bar");
         assert_eq!(client.get(b"foo").unwrap(), (*b"bar").into());
-        assert!(client.get(b"f00").is_err());
-        assert!(client.set(b"foo", b"car").is_ok());
+        assert!(client.get(b"f00").is_none());
+
+        client.set(b"foo", b"car");
         assert_eq!(client.get(b"foo").unwrap(), (*b"car").into());
 
         assert!(stop_tx.send(()).is_ok());
