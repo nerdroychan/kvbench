@@ -60,6 +60,11 @@ impl KVMapHandle for MutexHashMap {
             None => None,
         }
     }
+
+    fn delete(&mut self, key: &[u8]) {
+        let sid = find_shard(key, self.nr_shards);
+        self.shards[sid].lock().remove(key);
+    }
 }
 
 inventory::submit! {
@@ -118,6 +123,11 @@ impl KVMapHandle for RwLockHashMap {
             Some(v) => Some(v.clone()),
             None => None,
         }
+    }
+
+    fn delete(&mut self, key: &[u8]) {
+        let sid = find_shard(key, self.nr_shards);
+        self.shards[sid].write().remove(key);
     }
 }
 

@@ -99,4 +99,17 @@ impl KVClient {
             None => None,
         }
     }
+
+    pub fn delete(&mut self, key: &[u8]) {
+        let mut requests = Vec::<Request>::with_capacity(1);
+        let op = Operation::Delete { key: key.into() };
+        requests.push(Request { id: 0, op });
+        self.send_requests(&requests);
+
+        let mut responses = self.recv_responses_n(1);
+        assert_eq!(responses.len(), 1);
+        let response = responses.pop().unwrap();
+        assert_eq!(response.id, 0);
+        assert!(response.data.is_none());
+    }
 }

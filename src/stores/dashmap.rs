@@ -32,6 +32,10 @@ impl KVMapHandle for DashMap {
             None => None,
         }
     }
+
+    fn delete(&mut self, key: &[u8]) {
+        self.0.remove(key);
+    }
 }
 
 inventory::submit! {

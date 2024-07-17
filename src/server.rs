@@ -47,6 +47,10 @@ fn serve_requests_regular(
                     assert!(write_response(&mut *writer, id, None).is_ok());
                 }
             },
+            Operation::Delete { ref key } => {
+                handle.delete(key);
+                assert!(write_response(&mut *writer, id, None).is_ok());
+            }
         }
     }
 }
@@ -610,6 +614,9 @@ mod tests {
 
         client.set(b"foo", b"car");
         assert_eq!(client.get(b"foo").unwrap(), (*b"car").into());
+
+        client.delete(b"foo");
+        assert!(client.get(b"foo").is_none());
 
         assert!(stop_tx.send(()).is_ok());
         assert!(grace_rx.recv().is_ok());

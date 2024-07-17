@@ -12,6 +12,7 @@ use zipf::ZipfDistribution;
 enum OperationType {
     Set,
     Get,
+    Delete,
 }
 
 /// Mix defines the percentages of operations, it consists of multiple supported operations
@@ -23,13 +24,17 @@ struct Mix {
 }
 
 impl Mix {
-    fn new(set: u8, get: u8) -> Self {
-        let dist = WeightedIndex::new(&[set, get]).unwrap();
+    fn new(set: u8, get: u8, delete: u8) -> Self {
+        let dist = WeightedIndex::new(&[set, get, delete]).unwrap();
         Self { dist }
     }
 
     fn next(&self, rng: &mut impl Rng) -> OperationType {
-        let ops = [OperationType::Set, OperationType::Get];
+        let ops = [
+            OperationType::Set,
+            OperationType::Get,
+            OperationType::Delete,
+        ];
         ops[self.dist.sample(rng)].clone()
     }
 }
@@ -105,6 +110,7 @@ pub struct WorkloadOpt {
     /// Section of mix
     pub set_perc: u8,
     pub get_perc: u8,
+    pub del_perc: u8,
 
     /// Section of key/value generation
     /// (klen, vlen, kmin, kmax) are marked optional because one may not specify them in each
@@ -138,7 +144,7 @@ impl Workload {
     pub fn new(opt: &WorkloadOpt, thread_info: Option<(usize, usize)>) -> Self {
         // input sanity checks
         assert_eq!(
-            opt.set_perc + opt.get_perc,
+            opt.set_perc + opt.get_perc + opt.del_perc,
             100,
             "sum of ops in a mix should be 100"
         );
@@ -149,7 +155,7 @@ impl Workload {
         assert!(klen > 0, "klen should be positive");
         assert!(kmax > kmin, "kmax should be greater than kmin");
 
-        let mix = Mix::new(opt.set_perc, opt.get_perc);
+        let mix = Mix::new(opt.set_perc, opt.get_perc, opt.del_perc);
         let kgen = match opt.dist.as_str() {
             "increment" => KeyGenerator::new_increment(klen, kmin, kmax),
             "incrementp" => {
@@ -199,6 +205,7 @@ impl Workload {
                 Operation::Set { key, value }
             }
             OperationType::Get => Operation::Get { key },
+            OperationType::Delete => Operation::Delete { key },
         }
     }
 
@@ -220,20 +227,24 @@ mod tests {
     #[test]
     fn mix_one_type_only() {
         let mut rng = rand::thread_rng();
-        let mix = Mix::new(100, 0);
+        let mix = Mix::new(100, 0, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Set));
         }
-        let mix = Mix::new(0, 100);
+        let mix = Mix::new(0, 100, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Get));
+        }
+        let mix = Mix::new(0, 0, 100);
+        for _ in 0..100 {
+            assert!(matches!(mix.next(&mut rng), OperationType::Delete));
         }
     }
 
     #[test]
     fn mix_small_write() {
         let mut rng = rand::thread_rng();
-        let mix = Mix::new(5, 95);
+        let mix = Mix::new(5, 95, 0);
         let mut set = 0;
         #[allow(unused)]
         let mut get = 0;
@@ -241,6 +252,7 @@ mod tests {
             match mix.next(&mut rng) {
                 OperationType::Set => set += 1,
                 OperationType::Get => get += 1,
+                OperationType::Delete => unreachable!(),
             };
         }
         assert!(set < 65000 && set > 35000);
@@ -324,7 +336,8 @@ mod tests {
     #[test]
     fn workloadopt_toml_correct() {
         let s = r#"set_perc = 70
-                   get_perc = 30
+                   get_perc = 20
+                   del_perc = 10
                    klen = 4
                    vlen = 6
                    dist = "zipfian"
@@ -334,7 +347,8 @@ mod tests {
         assert_eq!(w.kgen.min, 0);
 
         let s = r#"set_perc = 70
-                   get_perc = 30
+                   get_perc = 20
+                   del_perc = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -350,6 +364,7 @@ mod tests {
     fn workloadopt_toml_invalid_wrong_size() {
         let s = r#"set_perc = 60
                    get_perc = 40
+                   del_perc = 0
                    klen = 0
                    vlen = 6
                    dist = "uniform"
@@ -363,6 +378,7 @@ mod tests {
     fn workloadopt_toml_invalid_missing_fields() {
         let s = r#"set_perc = 60
                    get_perc = 40
+                   del_perc = 0
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
@@ -374,6 +390,7 @@ mod tests {
     fn workloadopt_toml_invalid_wrong_keyspace() {
         let s = r#"set_perc = 60
                    get_perc = 40
+                   del_perc = 0
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -387,6 +404,7 @@ mod tests {
     fn workloadopt_toml_invalid_wrong_mix() {
         let s = r#"set_perc = 70
                    get_perc = 40
+                   del_perc = 0
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -400,6 +418,7 @@ mod tests {
         let opt = WorkloadOpt {
             set_perc: 100,
             get_perc: 0,
+            del_perc: 0,
             klen: Some(16),
             vlen: Some(100),
             dist: "incrementp".to_string(),
@@ -426,6 +445,7 @@ mod tests {
         let opt = WorkloadOpt {
             set_perc: 50,
             get_perc: 50,
+            del_perc: 0,
             klen: Some(16),
             vlen: Some(100),
             dist: "uniform".to_string(),
@@ -452,6 +472,9 @@ mod tests {
                     assert!(key.len() == 16);
                     dist.entry(key).and_modify(|c| *c += 1).or_insert(0);
                     get += 1;
+                }
+                Operation::Delete { .. } => {
+                    unreachable!();
                 }
             }
         }

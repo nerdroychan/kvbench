@@ -540,6 +540,9 @@ fn bench_worker_regular(
                 Operation::Get { key } => {
                     let _ = handle.get(&key[..]);
                 }
+                Operation::Delete { key } => {
+                    handle.delete(&key[..]);
+                }
             }
             *counter += 1;
             // check if we need to break

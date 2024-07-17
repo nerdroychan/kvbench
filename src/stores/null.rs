@@ -31,6 +31,8 @@ impl KVMapHandle for NullMap {
     fn get(&mut self, _key: &[u8]) -> Option<Box<[u8]>> {
         None
     }
+
+    fn delete(&mut self, _key: &[u8]) {}
 }
 
 inventory::submit! {

@@ -39,6 +39,10 @@ mod tests {
         // update
         handle.set(b"foo", b"0ar");
         assert_eq!(handle.get(b"foo"), Some((*b"0ar").into()));
+
+        // delete
+        handle.delete(b"foo");
+        assert_eq!(handle.get(b"foo"), None);
     }
 
     #[test]

@@ -39,8 +39,13 @@ pub trait KVMapHandle {
     /// Adding a new key-value pair or blindly updating an existing key's value.
     fn set(&mut self, key: &[u8], value: &[u8]);
 
-    /// Retrieving the value of a key.
+    /// Retrieving the value of a key if it exists
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>>;
+
+    /// Removing a key if it exists.
+    fn delete(&mut self, key: &[u8]);
+
+    // fn read_modify_write(&mut self, key: &[u8]);
 }
 
 /// Operation is one type of data accesses to a kvmap.
@@ -48,6 +53,7 @@ pub trait KVMapHandle {
 pub enum Operation {
     Set { key: Box<[u8]>, value: Box<[u8]> },
     Get { key: Box<[u8]> },
+    Delete { key: Box<[u8]> },
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug)]
