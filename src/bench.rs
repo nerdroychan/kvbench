@@ -11,6 +11,7 @@ use quanta::Instant;
 use serde::Deserialize;
 use std::fs::read_to_string;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use toml::Table;
@@ -328,13 +329,13 @@ pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
 
 fn bench_phase_should_break(
     len: &Length,
-    count: &u64,
+    count: u64,
     start: &Instant,
     workload: &mut Workload,
 ) -> bool {
     match len {
         Length::Count(c) => {
-            if count == c {
+            if count == *c {
                 return true;
             }
         }
@@ -355,24 +356,179 @@ fn bench_phase_should_break(
     false
 }
 
+struct Measurement {
+    /// An counter for each repeat in the same benchmark. Using AtomicU64 here makes the
+    /// measurement Sync + Send so it can be freely accessed by different threads (mainly by the
+    /// thread that aggregates the overall measurement.) This value is actively updated and loosely
+    /// read.
+    counts: Vec<AtomicU64>,
+
+    /// The duration of each repeat that is measured by the corresponding worker thread. It is only
+    /// updated once after a repeat is really done. In a time-limited run, the master thread will
+    /// try to access the duration. If an entry exists, it means the thread has finished execution,
+    /// so the master will directly use the time duration observed by the worker. If an entry is
+    /// not here, the time will be observed by the master.
+    durations: Vec<Mutex<Option<Duration>>>,
+}
+
+impl Measurement {
+    fn new(repeat: usize) -> Self {
+        let counts = (0..repeat).into_iter().map(|_| AtomicU64::new(0)).collect();
+        let durations = (0..repeat).into_iter().map(|_| Mutex::new(None)).collect();
+        Self { counts, durations }
+    }
+
+    fn read_counter(&self, repeat: usize) -> u64 {
+        self.counts[repeat].load(Ordering::Relaxed)
+    }
+
+    fn ref_counter(&self, repeat: usize) -> &mut u64 {
+        // SAFETY: the counter() method will only be called by the thread that updates its value
+        unsafe { &mut *self.counts[repeat].as_ptr() }
+    }
+
+    fn read_duration(&self, repeat: usize) -> Option<Duration> {
+        *self.durations[repeat].lock()
+    }
+}
+
+struct WorkerContext {
+    /// The benchmark phase that the current work is referring to
+    benchmark: Arc<Benchmark>,
+
+    /// The very beginning of all benchmarks in a group, for calculating elapsed timestamp
+    since: Instant,
+
+    /// The current phase of this benchmark in the group
+    phase: usize,
+
+    /// The measurement of all worker threads. One worker typically only needs to refer to one of
+    /// them, and the master thread (thread.id == repeat) will aggregate the metrics and make an
+    /// output
+    measurements: Vec<Arc<Measurement>>,
+
+    /// The sequence number of the output. This value is actually only used by one thread at a
+    /// time, but it is shared among all workers.
+    seq: Arc<AtomicUsize>,
+
+    /// Barrier that syncs all workers
+    barrier: Arc<Barrier>,
+
+    /// (worker_id, nr_threads) pair, used to determine the identity of a worker and also
+    thread_info: (usize, usize),
+}
+
+fn bench_stat_repeat(
+    benchmark: &Arc<Benchmark>,
+    phase: usize,
+    repeat: usize,
+    since: Instant,
+    start: Instant,
+    end: Instant,
+    thread_info: (usize, usize),
+    seq: &Arc<AtomicUsize>,
+    measurements: &Vec<Arc<Measurement>>,
+) {
+    assert!(thread_info.0 == 0);
+    let mut throughput = 0.0f64;
+    let mut total = 0u64;
+    for i in 0..thread_info.1 {
+        let d = match measurements[i].read_duration(repeat) {
+            Some(d) => d,
+            None => {
+                // only applies to time-limited benchmarks
+                assert!(matches!(benchmark.len, Length::Timeout(_)));
+                start.elapsed()
+            }
+        };
+        let ops = measurements[i].read_counter(repeat);
+        let tput = ops as f64 / d.as_secs_f64() / 1_000_000.0;
+        total += ops;
+        throughput += tput;
+    }
+
+    let duration = (end - start).as_secs_f64();
+    let elapsed = (end - since).as_secs_f64();
+
+    if benchmark.report == ReportMode::Repeat || benchmark.report == ReportMode::All {
+        println!(
+            "{} phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
+            seq.load(Ordering::Relaxed),
+            phase,
+            repeat,
+            duration,
+            elapsed,
+            total,
+            throughput,
+        );
+        seq.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn bench_stat_final(
+    benchmark: &Arc<Benchmark>,
+    phase: usize,
+    since: Instant,
+    start: Instant,
+    end: Instant,
+    thread_info: (usize, usize),
+    seq: &Arc<AtomicUsize>,
+    measurements: &Vec<Arc<Measurement>>,
+) {
+    assert!(thread_info.0 == 0);
+    let mut total = 0u64;
+    for i in 0..thread_info.1 {
+        for j in 0..benchmark.repeat {
+            let ops = measurements[i].read_counter(j);
+            total += ops;
+        }
+    }
+
+    let duration = (end - start).as_secs_f64();
+    let elapsed = (end - since).as_secs_f64();
+
+    let throughput = total as f64 / duration / 1_000_000.0;
+
+    if benchmark.report == ReportMode::Finish || benchmark.report == ReportMode::All {
+        println!(
+            "{} phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
+            seq.load(Ordering::Relaxed),
+            phase,
+            duration,
+            elapsed,
+            total,
+            throughput,
+        );
+        seq.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 fn bench_worker_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
-    benchmark: Arc<Benchmark>,
-    barrier: Arc<Barrier>,
-    counter: Arc<Mutex<u64>>,
-    thread_info: (usize, usize),
+    context: WorkerContext,
     thread: impl Thread,
 ) {
-    thread.pin(thread_info.0);
+    let WorkerContext {
+        benchmark,
+        since,
+        phase,
+        measurements,
+        seq,
+        barrier,
+        thread_info,
+    } = context;
+
+    let id = thread_info.0;
+    thread.pin(id);
 
     let mut handle = map.handle();
     let mut rng = rand::thread_rng();
     let mut workload = Workload::new(&benchmark.wopt, Some(thread_info));
-    for _ in 0..benchmark.repeat {
-        let mut count = 0u64;
-        // first sync, wait for main thread complete collecting data
+    let start = Instant::now(); // for thread 0
+    for i in 0..benchmark.repeat {
+        let counter = measurements[id].ref_counter(i);
+        // start the benchmark phase at roughly the same time
         barrier.wait();
-        *counter.lock() = 0u64; // reset
         let start = Instant::now();
         // start benchmark
         loop {
@@ -385,29 +541,75 @@ fn bench_worker_regular(
                     let _ = handle.get(&key[..]);
                 }
             }
-            count += 1;
+            *counter += 1;
             // check if we need to break
-            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
+            if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
                 workload.reset();
                 break;
             }
         }
-        // after the loop, update counter
-        *counter.lock() = count;
-        // barrier 2
-        barrier.wait();
+
+        // after the execution, counter is up-to-date, so it's time to update duration
+        let end = Instant::now();
+        *measurements[id].durations[i].lock() = Some(end.duration_since(start.clone()));
+
+        // for non time-limited benchmarks, sync first to make sure that all threads have finished
+        // if a benchmark is time limited, loosely evaluate the metrics
+        if !matches!(benchmark.len, Length::Timeout(_)) {
+            barrier.wait();
+        }
+
+        // master is 0, it will aggregate data and print info inside this call
+        if id == 0 {
+            bench_stat_repeat(
+                &benchmark,
+                phase,
+                i,
+                since,
+                start,
+                end,
+                thread_info,
+                &seq,
+                &measurements,
+            );
+        }
+    }
+
+    // every thread will sync on this
+    barrier.wait();
+
+    if id == 0 {
+        let end = Instant::now();
+        bench_stat_final(
+            &benchmark,
+            phase,
+            since,
+            start,
+            end,
+            thread_info,
+            &seq,
+            &measurements,
+        );
     }
 }
 
 fn bench_worker_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
-    benchmark: Arc<Benchmark>,
-    barrier: Arc<Barrier>,
-    counter: Arc<Mutex<u64>>,
-    thread_info: (usize, usize),
+    context: WorkerContext,
     thread: impl Thread,
 ) {
-    thread.pin(thread_info.0);
+    let WorkerContext {
+        benchmark,
+        since,
+        phase,
+        measurements,
+        seq,
+        barrier,
+        thread_info,
+    } = context;
+
+    let id = thread_info.0;
+    thread.pin(id);
 
     let responder = Rc::new(RefCell::new(Vec::<Response>::new()));
     let mut handle = map.handle(responder.clone());
@@ -416,12 +618,12 @@ fn bench_worker_async(
     // pending requests is global, as it is not needed to drain all requests after each repeat
     let mut pending = 0usize;
     let mut requests = Vec::<Request>::with_capacity(benchmark.batch);
-    let mut id = 0usize;
-    for _ in 0..benchmark.repeat {
-        let mut count = 0u64;
-        // first sync, wait for main thread complete collecting data
+    let mut rid = 0usize;
+    let start = Instant::now(); // for thread 0
+    for i in 0..benchmark.repeat {
+        let counter = measurements[id].ref_counter(i);
+        // start the benchmark phase at roughly the same time
         barrier.wait();
-        *counter.lock() = 0u64; // reset
         let start = Instant::now();
         // start benchmark
         loop {
@@ -430,13 +632,13 @@ fn bench_worker_async(
             // sample requests
             for _ in 0..benchmark.batch {
                 let op = workload.next(&mut rng);
-                requests.push(Request { id, op });
-                id += 1;
+                requests.push(Request { id: rid, op });
+                rid += 1;
                 // need to add to count here, instead of after this loop
                 // otherwise the last check may fail because the time check is after a certain
                 // interval, but the mod is never 0
-                count += 1;
-                if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
+                *counter += 1;
+                if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
                     break;
                 }
             }
@@ -444,7 +646,7 @@ fn bench_worker_async(
             let len = requests.len();
             handle.submit(&requests);
             pending += len;
-            if bench_phase_should_break(&benchmark.len, &count, &start, &mut workload) {
+            if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
                 workload.reset();
                 break;
             }
@@ -459,11 +661,34 @@ fn bench_worker_async(
                 }
             }
         }
-        // after the loop, update counter
-        *counter.lock() = count;
-        // barrier 2
-        barrier.wait();
+
+        // after the execution, counter is up-to-date, so it's time to update duration
+        let end = Instant::now();
+        *measurements[id].durations[i].lock() = Some(end.duration_since(start.clone()));
+
+        // for non time-limited benchmarks, sync first to make sure that all threads have finished
+        // if a benchmark is time limited, loosely evaluate the metrics
+        if !matches!(benchmark.len, Length::Timeout(_)) {
+            barrier.wait();
+        }
+
+        // master is 0, it will aggregate data and print info inside this call
+        if id == 0 {
+            bench_stat_repeat(
+                &benchmark,
+                phase,
+                i,
+                since,
+                start,
+                end,
+                thread_info,
+                &seq,
+                &measurements,
+            );
+        }
     }
+
+    // wait until all requests are back
     loop {
         if pending == 0 {
             break;
@@ -472,65 +697,22 @@ fn bench_worker_async(
         let responses = responder.replace_with(|_| Vec::new());
         pending -= responses.len();
     }
-}
 
-fn bench_mainloop(
-    benchmark: Arc<Benchmark>,
-    barrier: Arc<Barrier>,
-    phase: usize,
-    since: Instant,
-    seq: &mut usize,
-    counters: Vec<Arc<Mutex<u64>>>,
-    mut handles: Vec<impl JoinHandle>,
-) {
-    let mut total_duration = 0f64;
-    let mut total_ops = 0u64;
-    for i in 0..benchmark.repeat {
-        barrier.wait();
-        let start = Instant::now();
-        // worker runs
-        barrier.wait();
+    // every thread will sync on this
+    barrier.wait();
+
+    if id == 0 {
         let end = Instant::now();
-        let duration = end - start;
-        let elapsed = end - since;
-        // collecting data
-        let mut c = 0;
-        for i in counters.iter() {
-            c += *i.lock();
-        }
-        if benchmark.report == ReportMode::Repeat || benchmark.report == ReportMode::All {
-            println!(
-                "{} phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
-                *seq,
-                phase,
-                i,
-                duration.as_secs_f64(),
-                elapsed.as_secs_f64(),
-                c,
-                c as f64 / duration.as_secs_f64() / 1000000.0
-            );
-            *seq += 1;
-        }
-        total_duration += duration.as_secs_f64();
-        total_ops += c;
-    }
-
-    while let Some(handle) = handles.pop() {
-        handle.join();
-    }
-
-    if benchmark.report == ReportMode::Finish || benchmark.report == ReportMode::All {
-        let total_elapsed = Instant::now() - since;
-        println!(
-            "{} phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
-            *seq,
+        bench_stat_final(
+            &benchmark,
             phase,
-            total_duration,
-            total_elapsed.as_secs_f64(),
-            total_ops,
-            total_ops as f64 / total_duration / 1000000.0
+            since,
+            start,
+            end,
+            thread_info,
+            &seq,
+            &measurements,
         );
-        *seq += 1;
     }
 }
 
@@ -538,56 +720,83 @@ fn bench_phase_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     benchmark: Arc<Benchmark>,
     phase: usize,
-    since: Instant,
-    seq: &mut usize,
+    since: Arc<Instant>,
+    seq: Arc<AtomicUsize>,
     thread: &impl Thread,
 ) {
-    let barrier = Arc::new(Barrier::new((benchmark.threads + 1).try_into().unwrap()));
-    let counters: Vec<Arc<Mutex<u64>>> = (0..benchmark.threads)
-        .map(|_| Arc::new(Mutex::new(0u64)))
+    let barrier = Arc::new(Barrier::new(benchmark.threads.try_into().unwrap()));
+    let measurements: Vec<Arc<Measurement>> = (0..benchmark.threads)
+        .map(|_| Arc::new(Measurement::new(benchmark.repeat)))
         .collect();
     let mut handles = Vec::new();
     for t in 0..benchmark.threads {
         let map = map.clone();
         let benchmark = benchmark.clone();
         let barrier = barrier.clone();
-        let counter = counters[t].clone();
         let thread_info = (t, benchmark.threads);
+        let context = WorkerContext {
+            benchmark,
+            phase,
+            measurements: measurements.clone(),
+            barrier,
+            seq: seq.clone(),
+            since: *since,
+            thread_info,
+        };
         let worker_thread = thread.clone();
         let handle = thread.spawn(move || {
-            bench_worker_regular(map, benchmark, barrier, counter, thread_info, worker_thread);
+            bench_worker_regular(map, context, worker_thread);
         });
         handles.push(handle);
     }
-    bench_mainloop(benchmark, barrier, phase, since, seq, counters, handles);
+
+    // join thread 0
+    handles.pop().unwrap().join();
+
+    while let Some(handle) = handles.pop() {
+        handle.join();
+    }
 }
 
 fn bench_phase_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     benchmark: Arc<Benchmark>,
     phase: usize,
-    since: Instant,
-    seq: &mut usize,
+    since: Arc<Instant>,
+    seq: Arc<AtomicUsize>,
     thread: &impl Thread,
 ) {
-    let barrier = Arc::new(Barrier::new((benchmark.threads + 1).try_into().unwrap()));
-    let counters: Vec<Arc<Mutex<u64>>> = (0..benchmark.threads)
-        .map(|_| Arc::new(Mutex::new(0u64)))
+    let barrier = Arc::new(Barrier::new((benchmark.threads).try_into().unwrap()));
+    let measurements: Vec<Arc<Measurement>> = (0..benchmark.threads)
+        .map(|_| Arc::new(Measurement::new(benchmark.repeat)))
         .collect();
     let mut handles = Vec::new();
     for t in 0..benchmark.threads {
         let map = map.clone();
         let benchmark = benchmark.clone();
         let barrier = barrier.clone();
-        let counter = counters[t].clone();
         let thread_info = (t, benchmark.threads);
+        let context = WorkerContext {
+            benchmark,
+            phase,
+            measurements: measurements.clone(),
+            barrier,
+            seq: seq.clone(),
+            since: *since,
+            thread_info,
+        };
         let worker_thread = thread.clone();
         let handle = thread.spawn(move || {
-            bench_worker_async(map, benchmark, barrier, counter, thread_info, worker_thread);
+            bench_worker_async(map, context, worker_thread);
         });
         handles.push(handle);
     }
-    bench_mainloop(benchmark, barrier, phase, since, seq, counters, handles);
+
+    handles.pop().unwrap().join();
+
+    while let Some(handle) = handles.pop() {
+        handle.join();
+    }
 }
 
 pub fn bench_regular(
@@ -596,10 +805,17 @@ pub fn bench_regular(
     thread: impl Thread,
 ) {
     debug!("Running regular bencher");
-    let start = Instant::now();
-    let mut seq = 0usize;
+    let start = Arc::new(Instant::now());
+    let seq = Arc::new(AtomicUsize::new(0));
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_regular(map.clone(), p.clone(), i, start.clone(), &mut seq, &thread);
+        bench_phase_regular(
+            map.clone(),
+            p.clone(),
+            i,
+            start.clone(),
+            seq.clone(),
+            &thread,
+        );
     }
 }
 
@@ -609,10 +825,17 @@ pub fn bench_async(
     thread: impl Thread,
 ) {
     debug!("Running async bencher");
-    let start = Instant::now();
-    let mut seq = 0usize;
+    let start = Arc::new(Instant::now());
+    let seq = Arc::new(AtomicUsize::new(0));
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_async(map.clone(), p.clone(), i, start.clone(), &mut seq, &thread);
+        bench_phase_async(
+            map.clone(),
+            p.clone(),
+            i,
+            start.clone(),
+            seq.clone(),
+            &thread,
+        );
     }
 }
 
@@ -681,7 +904,7 @@ mod tests {
     }
 
     #[test]
-    fn example_null_async() {
+    fn example_async_null() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null_async.toml"
