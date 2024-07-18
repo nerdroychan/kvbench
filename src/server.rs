@@ -642,6 +642,36 @@ mod tests {
         simple(map);
     }
 
+    #[test]
+    fn simple_contrie() {
+        let map = BenchKVMap::Regular(Box::new(Contrie::new()));
+        simple(map);
+    }
+
+    #[test]
+    fn simple_chashmap() {
+        let map = BenchKVMap::Regular(Box::new(CHashMap::new()));
+        simple(map);
+    }
+
+    #[test]
+    fn simple_scchashmap() {
+        let map = BenchKVMap::Regular(Box::new(SccHashMap::new()));
+        simple(map);
+    }
+
+    #[test]
+    fn simple_flurry() {
+        let map = BenchKVMap::Regular(Box::new(Flurry::new()));
+        simple(map);
+    }
+
+    #[test]
+    fn simple_papaya() {
+        let map = BenchKVMap::Regular(Box::new(Papaya::new()));
+        simple(map);
+    }
+
     fn batch(map: BenchKVMap) {
         const NR_CLIENTS: usize = 8;
         const NR_BATCHES: usize = 1000;
@@ -747,6 +777,36 @@ mod tests {
     #[test]
     fn batch_dashmap() {
         let map = BenchKVMap::Regular(Box::new(DashMap::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_contrie() {
+        let map = BenchKVMap::Regular(Box::new(Contrie::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_chashmap() {
+        let map = BenchKVMap::Regular(Box::new(CHashMap::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_scchashmap() {
+        let map = BenchKVMap::Regular(Box::new(SccHashMap::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_flurry() {
+        let map = BenchKVMap::Regular(Box::new(Flurry::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_papaya() {
+        let map = BenchKVMap::Regular(Box::new(Papaya::new()));
         batch(map);
     }
 }

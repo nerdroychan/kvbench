@@ -14,15 +14,25 @@ pub fn find_shard(key: &[u8], nr_shards: usize) -> usize {
     usize::try_from(hash).unwrap() % nr_shards
 }
 
+pub mod chashmap;
+pub mod contrie;
 pub mod dashmap;
+pub mod flurry;
 pub mod hashmap;
 pub mod null;
+pub mod papaya;
 pub mod remote;
+pub mod scc;
 
+pub use chashmap::*;
+pub use contrie::*;
 pub use dashmap::*;
+pub use flurry::*;
 pub use hashmap::*;
 pub use null::*;
+pub use papaya::*;
 pub use remote::*;
+pub use scc::*;
 
 #[cfg(test)]
 mod tests {
@@ -68,6 +78,36 @@ mod tests {
     #[test]
     fn dashmap() {
         let mut map = DashMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn contrie() {
+        let mut map = Contrie::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn chashmap() {
+        let mut map = CHashMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn scchashmap() {
+        let mut map = SccHashMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn flurry() {
+        let mut map = Flurry::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn papaya() {
+        let mut map = Papaya::new();
         map_test(&mut map);
     }
 }

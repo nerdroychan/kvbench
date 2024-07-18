@@ -907,7 +907,7 @@ mod tests {
     }
 
     #[test]
-    fn example_async_null() {
+    fn example_null_async() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null_async.toml"
@@ -938,6 +938,51 @@ mod tests {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/dashmap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_contrie() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/contrie.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_chashmap() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/chashmap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_scchashmap() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/scchashmap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_flurry() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/flurry.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_papaya() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/papaya.toml"
         ));
         example(OPT);
     }

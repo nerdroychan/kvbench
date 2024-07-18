@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 serde = { version = "*", features = ["derive"] }
 bincode = "*"
+chashmap = "*"
+contrie = "*"
 mio = { version = "*", features = ["net", "os-poll"] }
 dashmap = { version = "*", features = ["inline"] }
 parking_lot = "*"
@@ -23,6 +25,9 @@ quanta = "*"
 hashbrown = "*"
 ahash = "*"
 figment = { version = "*", features = ["toml", "env"] }
+scc = "*"
+flurry = "*"
+papaya = "*"
 
 [profile.release]
 debug = true
