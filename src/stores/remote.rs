@@ -1,5 +1,5 @@
 use crate::bench::{BenchKVMap, Registry};
-use crate::client::KVClient;
+use crate::server::KVClient;
 use crate::*;
 use serde::Deserialize;
 use std::rc::Rc;

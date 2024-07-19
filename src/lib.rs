@@ -116,7 +116,6 @@ impl AsyncResponder for RefCell<Vec<Response>> {
 }
 
 pub mod bench;
-pub mod client;
 pub mod serialization;
 pub mod server;
 pub mod stores;
