@@ -1,7 +1,6 @@
 use crate::thread::{JoinHandle, Thread};
 use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
-use clap::Parser;
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
 use hashbrown::HashMap;
@@ -9,7 +8,6 @@ use log::debug;
 use parking_lot::Mutex;
 use quanta::Instant;
 use serde::Deserialize;
-use std::fs::read_to_string;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
@@ -843,41 +841,6 @@ pub fn bench_async(
 }
 
 // }}} bencher
-
-// {{{ cli
-
-pub fn cli() {
-    env_logger::init();
-
-    #[derive(Parser, Debug)]
-    #[command(about)]
-    struct Args {
-        #[arg(long, short = 'f')]
-        file: Option<String>,
-
-        #[arg(long, short = 'm')]
-        map_file: Option<String>,
-
-        #[arg(long, short = 'b')]
-        benchmark_file: Option<String>,
-    }
-
-    let args = Args::parse();
-    debug!("Starting benchmark with args: {:?}", args);
-
-    let opt: String = if let Some(f) = args.file {
-        read_to_string(f.as_str()).unwrap()
-    } else {
-        let m = args.map_file.clone().unwrap();
-        let b = args.benchmark_file.clone().unwrap();
-        read_to_string(m.as_str()).unwrap() + "\n" + &read_to_string(b.as_str()).unwrap()
-    };
-
-    let (map, phases) = init(&opt);
-    map.bench(&phases);
-}
-
-// }}} cli
 
 // {{{ tests
 

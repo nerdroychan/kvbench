@@ -1,9 +1,7 @@
-use crate::bench::*;
+use crate::bench::{BenchKVMap, BenchKVMapOpt};
 use crate::serialization::{read_request, read_response, write_request, write_response};
 use crate::thread::{JoinHandle, Thread};
 use crate::*;
-use crate::{AsyncKVMap, AsyncKVMapHandle, KVMap, KVMapHandle, Operation, Request};
-use clap::Parser;
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
 use hashbrown::HashMap;
@@ -11,7 +9,6 @@ use log::debug;
 use mio::net::TcpStream;
 use mio::{Events, Interest, Poll, Token};
 use std::cell::RefCell;
-use std::fs::read_to_string;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream as StdTcpStream};
 use std::rc::Rc;
@@ -625,51 +622,13 @@ struct ServerMapOpt {
     map: BenchKVMapOpt,
 }
 
-pub fn cli() {
-    env_logger::init();
-
-    #[derive(Parser, Debug)]
-    #[command(about)]
-    struct Args {
-        #[arg(long, short = 'h', default_value = "0.0.0.0")]
-        host: String,
-
-        #[arg(long, short = 'p', default_value = "9000")]
-        port: String,
-
-        #[arg(long, short = 'm')]
-        map_file: Option<String>,
-
-        #[arg(long, short = 'n')]
-        workers: usize,
-    }
-
-    let args = Args::parse();
-    debug!("Starting server with args: {:?}", args);
-
-    let host = &args.host;
-    let port = &args.port;
-    let nr_workers = args.workers;
-
-    let opt: String = read_to_string(args.map_file.as_ref().unwrap().as_str()).unwrap();
+pub fn init(text: &str) -> BenchKVMap {
     let opt: ServerMapOpt = Figment::new()
-        .merge(Toml::string(&opt))
+        .merge(Toml::string(&text))
         .merge(Env::raw())
         .extract()
         .unwrap();
-    let map = BenchKVMap::new(&opt.map);
-
-    let (_stop_tx, stop_rx) = channel();
-    let (grace_tx, _grace_rx) = channel();
-
-    match map {
-        BenchKVMap::Regular(map) => {
-            map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-        }
-        BenchKVMap::Async(map) => {
-            map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-        }
-    }
+    BenchKVMap::new(&opt.map)
 }
 
 #[cfg(test)]
@@ -678,7 +637,6 @@ mod tests {
 
     use crate::bench::BenchKVMap;
     use crate::stores::*;
-    use crate::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::time::Duration;
