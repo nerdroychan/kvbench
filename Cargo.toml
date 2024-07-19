@@ -28,6 +28,7 @@ figment = { version = "*", features = ["toml", "env"] }
 scc = "*"
 flurry = "*"
 papaya = "*"
+ctrlc = "*"
 
 [profile.release]
 debug = true

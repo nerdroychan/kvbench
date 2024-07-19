@@ -318,7 +318,10 @@ fn server_worker_regular(
     loop {
         if let Some(msg) = server_worker_check_msg(&listener, &rx, &txs, &counter, nr_workers) {
             match msg {
-                WorkerMsg::Terminate => break,
+                WorkerMsg::Terminate => {
+                    debug!("Server worker {} terminates", worker_id);
+                    break;
+                }
                 WorkerMsg::NewConnection(s, addr) => {
                     let (token, reader, writer) = server_worker_new_connection(s, addr, &poll);
                     smap.insert(
@@ -361,7 +364,10 @@ fn server_worker_async(
     loop {
         if let Some(msg) = server_worker_check_msg(&listener, &rx, &txs, &counter, nr_workers) {
             match msg {
-                WorkerMsg::Terminate => break,
+                WorkerMsg::Terminate => {
+                    debug!("Server worker {} terminates", worker_id);
+                    break;
+                }
                 WorkerMsg::NewConnection(s, addr) => {
                     let (token, reader, writer) = server_worker_new_connection(s, addr, &poll);
                     let writer = Rc::new(writer);

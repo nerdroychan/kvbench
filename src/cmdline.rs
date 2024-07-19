@@ -64,8 +64,14 @@ fn server_cli(args: &ServerArgs) {
     let opt: String = read_to_string(args.store_config.as_str()).unwrap();
     let map = crate::server::init(&opt);
 
-    let (_stop_tx, stop_rx) = channel();
-    let (grace_tx, _grace_rx) = channel();
+    let (stop_tx, stop_rx) = channel();
+    let (grace_tx, grace_rx) = channel();
+
+    ctrlc::set_handler(move || {
+        assert!(stop_tx.send(()).is_ok());
+        debug!("SIGINT received and stop message sent to server");
+    })
+    .expect("Error setting Ctrl-C handler for server");
 
     match map {
         BenchKVMap::Regular(map) => {
@@ -75,6 +81,9 @@ fn server_cli(args: &ServerArgs) {
             map.server(&host, &port, nr_workers, stop_rx, grace_tx);
         }
     }
+
+    assert!(grace_rx.recv().is_ok());
+    debug!("All server threads have been shut down gracefully, exit");
 }
 
 pub fn default() {
