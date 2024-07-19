@@ -86,7 +86,7 @@ fn server_cli(args: &ServerArgs) {
     debug!("All server threads have been shut down gracefully, exit");
 }
 
-pub fn default() {
+pub fn cmdline() {
     env_logger::init();
     let cli = Cli::parse();
     debug!("Starting kvbench with args: {:?}", cli);

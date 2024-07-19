@@ -1,10 +1,26 @@
+//! A benchmark framework that tests key-value stores with easily customizable workloads.
+//!
+//! With `kvbench`, you can define the details of a benchmark using the TOML format, such as the
+//! proportions of mixed operations, the key access pattern, and key space size, just to name a
+//! few. In addition to regular single-process benchmarks, `kvbench` also integrates a key-value
+//! client/server implementation that works with a dedicated server thread/machine.
+//!
+//! You can also incorporate `kvbench` into your own key-value store implementations and run it
+//! against the built-in stores. All you need is implementing the `KVMap` or the `AsyncKVMap`
+//! trait, depending on the type of the store. After registering your store, simply reuse the
+//! exported `cmdline` in your `main` function and it will work seamlessly with your own store.
+//!
+//! More detailed usage could be found in the module-level rustdocs.
+
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
-/// A synchronous, thread-safe key-value map. This trait is used for owned stores, with which a
+/// A synchronous, thread-safe key-value map.
+///
+/// This trait is used for owned stores, with which a
 /// per-thread handle can be created. The default benchmark/server implementation is provided,
 /// unless the use case needs to use specific thread management implementations.
 pub trait KVMap: Send + Sync + 'static {
@@ -68,9 +84,12 @@ pub struct Response {
     pub data: Option<Box<[u8]>>,
 }
 
-/// An asynchronous, thread-safe key-value map. Unlike `KVMap`, `AsyncKVMap` works with
-/// request/response style. Where each handle needs to be created by registering an explicit
-/// responder that serves as the "callback" when the underlying routine produces a response.
+/// An asynchronous, thread-safe key-value map. (Not the async as in Rust, but more like
+/// non-blocking).
+///
+/// Unlike `KVMap`, `AsyncKVMap` works with request/response style. Where each handle needs to be
+/// created by registering an explicit responder that serves as the "callback" when the underlying
+/// routine produces a response.
 ///
 /// Specifically, for benchmark, each worker thread maintains just one handle, so the buffer is
 /// per-worker. For server, each worker may manage multiple coneections. Each connection needs its
@@ -116,9 +135,11 @@ impl AsyncResponder for RefCell<Vec<Response>> {
 }
 
 pub mod bench;
-pub mod cmdline;
-pub mod serialization;
 pub mod server;
-pub mod stores;
 pub mod thread;
 pub mod workload;
+pub mod cmdline;
+pub mod stores;
+pub mod serialization;
+
+pub use cmdline::cmdline;

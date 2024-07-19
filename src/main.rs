@@ -1,5 +1,5 @@
-use kvbench::cmdline::default;
+use kvbench::cmdline;
 
 fn main() {
-    default();
+    cmdline();
 }
