@@ -7,20 +7,13 @@ use std::sync::mpsc::channel;
 
 #[derive(Args, Debug)]
 struct BenchArgs {
-    #[arg(short = 'f', group = "combined", conflicts_with = "separate")]
-    #[arg(required_unless_present_any = ["map_file", "benchmark_file"])]
+    #[arg(short = 's')]
     #[arg(value_hint = FilePath)]
-    file: Option<String>,
+    store_config: String,
 
-    #[arg(short = 'm', group = "separate", conflicts_with = "combined")]
-    #[arg(requires = "benchmark_file")]
+    #[arg(short = 'b')]
     #[arg(value_hint = FilePath)]
-    map_file: Option<String>,
-
-    #[arg(short = 'b', group = "separate", conflicts_with = "combined")]
-    #[arg(requires = "map_file")]
-    #[arg(value_hint = FilePath)]
-    benchmark_file: Option<String>,
+    benchmark_config: String,
 }
 
 #[derive(Args, Debug)]
@@ -31,9 +24,9 @@ struct ServerArgs {
     #[arg(short = 'p', default_value = "9000")]
     port: String,
 
-    #[arg(short = 'm')]
+    #[arg(short = 's')]
     #[arg(value_hint = FilePath)]
-    map_file: String,
+    store_config: String,
 
     #[arg(short = 'n', default_value_t = 1)]
     workers: usize,
@@ -53,12 +46,10 @@ enum Commands {
 }
 
 fn bench_cli(args: &BenchArgs) {
-    let opt: String = if let Some(f) = &args.file {
-        read_to_string(f.as_str()).unwrap()
-    } else {
-        let m = args.map_file.clone().unwrap();
-        let b = args.benchmark_file.clone().unwrap();
-        read_to_string(m.as_str()).unwrap() + "\n" + &read_to_string(b.as_str()).unwrap()
+    let opt: String = {
+        let s = args.store_config.clone();
+        let b = args.benchmark_config.clone();
+        read_to_string(s.as_str()).unwrap() + "\n" + &read_to_string(b.as_str()).unwrap()
     };
 
     let (map, phases) = init(&opt);
@@ -70,7 +61,7 @@ fn server_cli(args: &ServerArgs) {
     let port = &args.port;
     let nr_workers = args.workers;
 
-    let opt: String = read_to_string(args.map_file.as_str()).unwrap();
+    let opt: String = read_to_string(args.store_config.as_str()).unwrap();
     let map = crate::server::init(&opt);
 
     let (_stop_tx, stop_rx) = channel();
