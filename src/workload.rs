@@ -44,7 +44,7 @@ impl Mix {
 enum KeyDistribution {
     Increment,
     Uniform(Uniform<usize>),
-    Zipfian(ZipfDistribution),
+    Zipfian(ZipfDistribution, usize),
     // File,
 }
 
@@ -55,6 +55,7 @@ struct KeyGenerator {
     len: usize,
     min: usize,
     max: usize,
+    keyspace: usize,
     dist: KeyDistribution,
     serial: usize,
 }
@@ -65,6 +66,7 @@ impl KeyGenerator {
             len,
             min,
             max,
+            keyspace: max - min,
             dist,
             serial: 0,
         }
@@ -80,16 +82,20 @@ impl KeyGenerator {
         Self::new(len, min, max, dist)
     }
 
-    fn new_zipfian(len: usize, min: usize, max: usize, theta: f64) -> Self {
-        let dist = KeyDistribution::Zipfian(ZipfDistribution::new(max - min, theta).unwrap());
+    fn new_zipfian(len: usize, min: usize, max: usize, theta: f64, hotspot: f64) -> Self {
+        let hotspot = (hotspot * (max - min) as f64) as usize; // approx location for discrete keys
+        let dist =
+            KeyDistribution::Zipfian(ZipfDistribution::new(max - min, theta).unwrap(), hotspot);
         Self::new(len, min, max, dist)
     }
 
     fn next(&mut self, rng: &mut impl Rng) -> Box<[u8]> {
         let key = match self.dist {
-            KeyDistribution::Increment => self.serial % (self.max - self.min),
+            KeyDistribution::Increment => self.serial % self.keyspace,
             KeyDistribution::Uniform(dist) => dist.sample(rng),
-            KeyDistribution::Zipfian(dist) => dist.sample(rng) - 1, // zipf starts at 1
+            KeyDistribution::Zipfian(dist, hotspot) => {
+                (dist.sample(rng) + hotspot - 1) % self.keyspace
+            } // zipf starts at 1
         } + self.min;
         self.serial += 1;
         assert!(key < self.max);
@@ -121,7 +127,8 @@ pub struct WorkloadOpt {
     pub kmin: Option<usize>,
     pub kmax: Option<usize>,
     pub dist: String,
-    pub zipf_theta: Option<f64>, // optional for zipfian, default 1.0
+    pub zipf_theta: Option<f64>,   // optional for zipfian, default 1.0
+    pub zipf_hotspot: Option<f64>, // optional for zipfian, default 0.0
 }
 
 /// The minimal unit of workload context with its access pattern (mix and kgen). The values
@@ -173,7 +180,8 @@ impl Workload {
             "uniform" => KeyGenerator::new_uniform(klen, kmin, kmax),
             "zipfian" => {
                 let theta = opt.zipf_theta.unwrap_or(1.0f64);
-                KeyGenerator::new_zipfian(klen, kmin, kmax, theta)
+                let hotspot = opt.zipf_hotspot.unwrap_or(0.0f64);
+                KeyGenerator::new_zipfian(klen, kmin, kmax, theta, hotspot)
             }
             _ => {
                 panic!("invalid key distribution: {}", opt.dist);
@@ -295,7 +303,7 @@ mod tests {
     fn keygen_zipfian() {
         let mut rng = rand::thread_rng();
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
-        let mut kgen = KeyGenerator::new_zipfian(8, 0, 10, 1.0);
+        let mut kgen = KeyGenerator::new_zipfian(8, 0, 10, 1.0, 0.0);
         for _ in 0..1000000 {
             let k = kgen.next(&mut rng);
             dist.entry(k).and_modify(|c| *c += 1).or_insert(0);
@@ -310,10 +318,28 @@ mod tests {
     }
 
     #[test]
+    fn keygen_zipfian_hotspot() {
+        let mut rng = rand::thread_rng();
+        let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
+        let mut kgen = KeyGenerator::new_zipfian(8, 0, 10, 1.0, 0.5);
+        for _ in 0..1000000 {
+            let k = kgen.next(&mut rng);
+            dist.entry(k).and_modify(|c| *c += 1).or_insert(0);
+        }
+        let mut freq: Vec<(Box<[u8]>, u64)> = dist.iter().map(|e| (e.0.clone(), *e.1)).collect();
+        freq.sort_by_key(|c| c.0.clone());
+        // should be 4 actually, but since the key space is discrete it is just approximate
+        let p1 = freq[5].1 as f64 / freq[6].1 as f64;
+        assert!(p1 > 1.9 && p1 < 2.0, "zipf p1: {}", p1);
+        let p2 = freq[6].1 as f64 / freq[7].1 as f64;
+        assert!(p2 > 1.45 && p2 < 1.55, "zipf p2: {}", p2);
+    }
+
+    #[test]
     fn keygen_speed() {
         const N: usize = 1_000_0000;
         let mut rng = rand::thread_rng();
-        let mut kgen = KeyGenerator::new_zipfian(8, 0, 1000, 1.0);
+        let mut kgen = KeyGenerator::new_zipfian(8, 0, 1000, 1.0, 0.0);
         let t = Instant::now();
         for _ in 0..N {
             let _ = kgen.next(&mut rng);
@@ -425,6 +451,7 @@ mod tests {
             kmin: Some(10000),
             kmax: Some(22347),
             zipf_theta: None,
+            zipf_hotspot: None,
         };
 
         let workload = Workload::new(&opt, Some((0, 3)));
@@ -452,6 +479,7 @@ mod tests {
             kmin: Some(1000),
             kmax: Some(2000),
             zipf_theta: None,
+            zipf_hotspot: None,
         };
         let mut workload = Workload::new(&opt, None);
         let mut set = 0;
