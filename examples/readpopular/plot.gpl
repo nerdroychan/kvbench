@@ -1,0 +1,15 @@
+set terminal pdf
+set ylabel "Throughput (MOP/s)"
+set xlabel "Threads"
+set key left top
+
+set output "readpopular.pdf"
+plot [0:17] [0:] \
+    "chashmap.txt" using ($0+1):13 with lp ti "chashmap",\
+    "contrie.txt" using ($0+1):13 with lp ti "contrie",\
+    "dashmap.txt" using ($0+1):13 with lp ti "dashmap",\
+    "flurry.txt" using ($0+1):13 with lp ti "flurry",\
+    "papaya.txt" using ($0+1):13 with lp ti "papaya",\
+    "scchashmap.txt" using ($0+1):13 with lp ti "scchashmap",\
+    "mutex_hashmap.txt" using ($0+1):13 with lp ti "mutexhashmap",\
+    "rwlock_hashmap.txt" using ($0+1):13 with lp ti "rwlockhashmap"
