@@ -1,3 +1,5 @@
+//! The core benchmark functionalities.
+
 use crate::thread::{JoinHandle, Thread};
 use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
@@ -16,14 +18,14 @@ use toml::Table;
 
 // {{{ benchmap
 
-/// The bencher supports two types of maps: regular (sync) and async,
-/// and they correspond to KVMap and AsyncKVMap backed store, respectively.
+/// A unified enum for a created key-value store that is ready to run.
 pub enum BenchKVMap {
     Regular(Box<dyn KVMap>),
     Async(Box<dyn AsyncKVMap>),
 }
 
 impl BenchKVMap {
+    /// Wraps the real `bench` function of the store.
     pub fn bench(self, phases: &Vec<Arc<Benchmark>>) {
         match self {
             BenchKVMap::Regular(map) => {
@@ -36,11 +38,9 @@ impl BenchKVMap {
     }
 }
 
-/// We would like to make the benchmark module as extendable as possible. That is, when adding a
-/// new beckend map/collection, we actually do not want to modify anything in the benchmark
-/// framework. The user then can directly use this crate as a dependency then do whatever they want
-/// to do. So we just use a generic toml map structure to encode all map-specific configurations.
-/// When a new kvmap is added, we use the inventory crate to dynamically register them.
+/// The centralized registry that maps the name of newly added key-value store to its constructor
+/// function. A user-defined store can use the [`inventory::submit!`] macro to register their own
+/// stores to be used in the benchmark framework.
 pub struct Registry<'a> {
     name: &'a str,
     constructor: fn(&Table) -> BenchKVMap,
@@ -158,7 +158,7 @@ impl BenchmarkOpt {
     }
 }
 
-/// Instantiated from BenchmarkOpt
+/// The configuration of a benchmark, parsed from user's input.
 #[derive(Debug)]
 pub struct Benchmark {
     threads: usize,
@@ -297,7 +297,7 @@ struct BenchmarkGroupOpt {
 
 // {{{ bencher
 
-pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
+pub(crate) fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
     let opt: BenchmarkGroupOpt = Figment::new()
         .merge(Toml::string(text))
         .merge(Env::raw())
@@ -800,6 +800,7 @@ fn bench_phase_async(
     }
 }
 
+/// The real benchmark function for [`KVMap`].
 pub fn bench_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
@@ -820,6 +821,7 @@ pub fn bench_regular(
     }
 }
 
+/// The real benchmark function for [`AsyncKVMap`].
 pub fn bench_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,

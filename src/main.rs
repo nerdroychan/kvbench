@@ -1,5 +1,3 @@
-use kvbench::cmdline;
-
 fn main() {
-    cmdline();
+    kvbench::cmdline();
 }

@@ -1,3 +1,5 @@
+//! A key-value server/client implementation.
+
 use crate::bench::{BenchKVMap, BenchKVMapOpt};
 use crate::serialization::{read_request, read_response, write_request, write_response};
 use crate::thread::{JoinHandle, Thread};
@@ -436,6 +438,7 @@ fn server_mainloop(
     assert!(grace_tx.send(()).is_ok());
 }
 
+/// The real server function for [`KVMap`].
 pub fn server_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     host: &str,
@@ -474,6 +477,7 @@ pub fn server_regular(
     server_mainloop(stop_rx, grace_tx, senders, handles, thread);
 }
 
+/// The real server function for [`AsyncKVMap`].
 pub fn server_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     host: &str,
@@ -512,13 +516,13 @@ pub fn server_async(
     server_mainloop(stop_rx, grace_tx, senders, handles, thread);
 }
 
-pub struct KVClient {
+pub(crate) struct KVClient {
     request_writer: BufWriter<TcpStream>,
     response_reader: BufReader<TcpStream>,
 }
 
 impl KVClient {
-    pub fn new(host: &str, port: &str) -> Option<Self> {
+    pub(crate) fn new(host: &str, port: &str) -> Option<Self> {
         let addr: String = "".to_string() + host + ":" + port;
         match StdTcpStream::connect(&addr) {
             Ok(s) => {
@@ -534,7 +538,7 @@ impl KVClient {
         }
     }
 
-    pub fn send_requests(&mut self, requests: &Vec<Request>) {
+    pub(crate) fn send_requests(&mut self, requests: &Vec<Request>) {
         for r in requests {
             assert!(write_request(&mut self.request_writer, r).is_ok())
         }
@@ -542,7 +546,7 @@ impl KVClient {
     }
 
     // recv all (drain the buffer)
-    pub fn recv_responses(&mut self) -> Vec<Response> {
+    pub(crate) fn recv_responses(&mut self) -> Vec<Response> {
         assert!(self.response_reader.fill_buf().is_ok());
         let mut responses = Vec::new();
 
@@ -560,7 +564,8 @@ impl KVClient {
         responses
     }
 
-    pub fn recv_responses_n(&mut self, nr: usize) -> Vec<Response> {
+    #[cfg(test)]
+    fn recv_responses_n(&mut self, nr: usize) -> Vec<Response> {
         let mut responses = Vec::<Response>::with_capacity(nr);
 
         for _ in 0..nr {
@@ -577,7 +582,8 @@ impl KVClient {
         responses
     }
 
-    pub fn set(&mut self, key: &[u8], value: &[u8]) {
+    #[cfg(test)]
+    fn set(&mut self, key: &[u8], value: &[u8]) {
         let mut requests = Vec::<Request>::with_capacity(1);
         let op = Operation::Set {
             key: key.into(),
@@ -593,7 +599,8 @@ impl KVClient {
         assert!(response.data.is_none());
     }
 
-    pub fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
+    #[cfg(test)]
+    fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
         let mut requests = Vec::<Request>::with_capacity(1);
         let op = Operation::Get { key: key.into() };
         requests.push(Request { id: 0, op });
@@ -609,7 +616,8 @@ impl KVClient {
         }
     }
 
-    pub fn delete(&mut self, key: &[u8]) {
+    #[cfg(test)]
+    fn delete(&mut self, key: &[u8]) {
         let mut requests = Vec::<Request>::with_capacity(1);
         let op = Operation::Delete { key: key.into() };
         requests.push(Request { id: 0, op });
@@ -628,7 +636,7 @@ struct ServerMapOpt {
     map: BenchKVMapOpt,
 }
 
-pub fn init(text: &str) -> BenchKVMap {
+pub(crate) fn init(text: &str) -> BenchKVMap {
     let opt: ServerMapOpt = Figment::new()
         .merge(Toml::string(&text))
         .merge(Env::raw())

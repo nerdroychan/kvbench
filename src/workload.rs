@@ -1,3 +1,5 @@
+//! Workload generator.
+
 use crate::Operation;
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
@@ -109,30 +111,51 @@ impl KeyGenerator {
     }
 }
 
-/// A structure that can be deserialized from a toml string. This struct is used for interacting
-/// with workload configuration files and also create new Workload instances.
+/// A set of workload parameters that can be deserialized from a toml string.
+///
+/// This struct is used for interacting with workload configuration files and also create new
+/// [`Workload`] instances.
 #[derive(Deserialize, Clone, Debug)]
 pub struct WorkloadOpt {
-    /// Section of mix
+    /// Percentage of `SET` operations.
     pub set_perc: u8,
+
+    /// Percentage of `GET` operations.
     pub get_perc: u8,
+
+    /// Percentage of `DELETE` operations.
     pub del_perc: u8,
 
-    /// Section of key/value generation
-    /// (klen, vlen, kmin, kmax) are marked optional because one may not specify them in each
-    /// individual workload, but instead in benchmark settings, and the bench module will take care
-    /// of it. So they must not be None when creating a workload.
+    // Section of key/value generation
+    // (klen, vlen, kmin, kmax) are marked optional because one may not specify them in each
+    // individual workload, but instead in benchmark settings, and the bench module will take care
+    // of it. So they must not be None when creating a workload.
+    /// Key length in bytes.
     pub klen: Option<usize>,
+
+    /// Value length in bytes.
     pub vlen: Option<usize>,
+
+    /// Minimum key.
     pub kmin: Option<usize>,
+
+    /// Maximum key.
     pub kmax: Option<usize>,
+
+    /// Key distribution.
     pub dist: String,
-    pub zipf_theta: Option<f64>,   // optional for zipfian, default 1.0
-    pub zipf_hotspot: Option<f64>, // optional for zipfian, default 0.0
+
+    /// The theta parameter for Zipfian distribution. (Optional, default 1.0)
+    pub zipf_theta: Option<f64>,
+
+    /// The hotspot location for Zipfian distribution. (Optional, default 0.0)
+    pub zipf_hotspot: Option<f64>,
 }
 
-/// The minimal unit of workload context with its access pattern (mix and kgen). The values
-/// generated internally are fixed-sized only for now, similar to the keys. To pressurize the
+/// The minimal unit of workload context with its access pattern (mix and kgen).
+///
+/// The values generated internally are fixed-sized only for now, similar to the keys. To
+/// pressurize the
 /// memory allocator, it might be a good idea to randomly adding a byte or two at each generated
 /// values.
 #[derive(Debug)]

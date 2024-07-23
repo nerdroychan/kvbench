@@ -1,7 +1,6 @@
 use crate::bench::{BenchKVMap, Registry};
 use crate::*;
 
-/// DashMap is a monolithic, lock-free concurrent hash map based on dashmap
 #[derive(Clone)]
 pub struct DashMap(Arc<dashmap::DashMap<Box<[u8]>, Box<[u8]>>>);
 

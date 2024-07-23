@@ -6,13 +6,11 @@ use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;
 use std::sync::Arc;
 
-/// BaseHashMap is a wrapper around raw HashMap with variable-sized keys and values.
-/// It is used as the builing block of other types, like a shard, or a property
-/// in the delegation setup. Note that BaseHashMap is not KVMap.
+/// A wrapper around raw HashMap with variable-sized keys and values.
+///
+/// It is used as the builing block of other types. Note that this is not [`KVMap`].
 pub type BaseHashMap = HashMap<Box<[u8]>, Box<[u8]>>;
 
-/// MutexHashMap is a locking-based KV. It uses Mutex<BaseHashMap> for sharding to
-/// avoid a monolithic lock. It implements KVMap, nartually.
 #[derive(Clone)]
 pub struct MutexHashMap {
     nr_shards: usize,
@@ -75,8 +73,6 @@ inventory::submit! {
 
 // {{{ rwlock_hashmap
 
-/// RwLockHashMap similar to MutexHashMap but it uses RwLocks instead of
-/// Mutex.
 #[derive(Clone)]
 pub struct RwLockHashMap {
     pub nr_shards: usize,

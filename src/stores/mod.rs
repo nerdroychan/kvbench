@@ -1,3 +1,5 @@
+//! The implementation of built-in key-value stores, and some util functions.
+
 use ahash::AHasher;
 use std::hash::Hasher;
 

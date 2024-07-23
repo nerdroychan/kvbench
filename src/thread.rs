@@ -1,11 +1,13 @@
-/// A KVMap implementation is generally passive. However, some KVMap may act like a server with
-/// active threads. In that case, one may employ its own implementation of spawn-join. If that is
-/// the case, their join handle (like std::thread::JoinHandle) should implement the JoinHandle
-/// crate and the spawn struct needs to implement Spawn.
-///
-/// Note that for simplicity, the function spawn is generic over should not have a return value. So
-/// it is with the JoinHandle. Because the purpose is not general spawn-join but solely for
-/// benchmark code, which does not use any return values.
+//! Spawn-join functionality.
+//!
+//! A KVMap implementation is generally passive. However, some KVMap may act like a server with
+//! active threads. In that case, one may employ its own implementation of spawn-join. If that is
+//! the case, their join handle (like std::thread::JoinHandle) should implement the JoinHandle
+//! crate and the spawn struct needs to implement Spawn.
+//!
+//! Note that for simplicity, the function spawn is generic over should not have a return value. So
+//! it is with the JoinHandle. Because the purpose is not general spawn-join but solely for
+//! benchmark code, which does not use any return values.
 
 pub trait JoinHandle {
     fn join(self);
@@ -22,7 +24,7 @@ pub trait Thread: Send + Clone + 'static {
 }
 
 #[derive(Clone)]
-pub struct DefaultThread;
+pub(crate) struct DefaultThread;
 
 impl JoinHandle for std::thread::JoinHandle<()> {
     fn join(self) {

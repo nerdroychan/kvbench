@@ -86,6 +86,11 @@ fn server_cli(args: &ServerArgs) {
     debug!("All server threads have been shut down gracefully, exit");
 }
 
+/// The default command line interface.
+///
+/// This function is public and can be called in a different crate. For example, one can integrate
+/// their own key-value stores by registering the constructor function. Then, adding this function
+/// will produce a benchmark binary the has the same usage as the one in this crate.
 pub fn cmdline() {
     env_logger::init();
     let cli = Cli::parse();

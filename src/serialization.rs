@@ -2,11 +2,14 @@ use crate::{Request, Response};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 
-pub fn read_request(reader: &mut impl Read) -> Result<Request, bincode::Error> {
+pub(crate) fn read_request(reader: &mut impl Read) -> Result<Request, bincode::Error> {
     bincode::deserialize_from::<_, Request>(reader)
 }
 
-pub fn write_request(writer: &mut impl Write, request: &Request) -> Result<(), bincode::Error> {
+pub(crate) fn write_request(
+    writer: &mut impl Write,
+    request: &Request,
+) -> Result<(), bincode::Error> {
     bincode::serialize_into(writer, request)
 }
 
@@ -16,7 +19,7 @@ struct ResponseHeader {
     len: usize,
 }
 
-pub fn read_response(reader: &mut impl Read) -> Result<Response, bincode::Error> {
+pub(crate) fn read_response(reader: &mut impl Read) -> Result<Response, bincode::Error> {
     let header = bincode::deserialize_from::<_, ResponseHeader>(&mut *reader)?;
     let id = header.id;
     let len = header.len;
@@ -35,7 +38,7 @@ pub fn read_response(reader: &mut impl Read) -> Result<Response, bincode::Error>
     }
 }
 
-pub fn write_response(
+pub(crate) fn write_response(
     writer: &mut impl Write,
     id: usize,
     data: Option<&[u8]>,
