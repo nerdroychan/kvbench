@@ -43,6 +43,7 @@ struct Cli {
 enum Commands {
     Server(ServerArgs),
     Bench(BenchArgs),
+    List,
 }
 
 fn bench_cli(args: &BenchArgs) {
@@ -86,6 +87,12 @@ fn server_cli(args: &ServerArgs) {
     debug!("All server threads have been shut down gracefully, exit");
 }
 
+fn list_cli() {
+    for r in inventory::iter::<Registry> {
+        println!("Registered map: {}", r.name);
+    }
+}
+
 /// The default command line interface.
 ///
 /// This function is public and can be called in a different crate. For example, one can integrate
@@ -98,5 +105,6 @@ pub fn cmdline() {
     match cli.command {
         Commands::Bench(args) => bench_cli(&args),
         Commands::Server(args) => server_cli(&args),
+        Commands::List => list_cli(),
     }
 }

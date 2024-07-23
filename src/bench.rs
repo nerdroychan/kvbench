@@ -42,7 +42,7 @@ impl BenchKVMap {
 /// function. A user-defined store can use the [`inventory::submit!`] macro to register their own
 /// stores to be used in the benchmark framework.
 pub struct Registry<'a> {
-    name: &'a str,
+    pub(crate) name: &'a str,
     constructor: fn(&Table) -> BenchKVMap,
 }
 
