@@ -171,12 +171,14 @@ impl AsyncResponder for RefCell<Vec<Response>> {
 }
 
 pub mod bench;
+mod cmdline;
+mod serialization;
 pub mod server;
 pub mod stores;
 pub mod thread;
 pub mod workload;
 
-mod cmdline;
-mod serialization;
-
 pub use cmdline::cmdline;
+
+pub extern crate inventory;
+pub extern crate toml;

@@ -2,6 +2,7 @@
 name = "kvbench"
 version = "0.1.0"
 edition = "2021"
+exclude = ["presets", "examples"]
 
 [dependencies]
 serde = { version = "*", features = ["derive"] }
