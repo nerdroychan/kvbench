@@ -1,3 +1,13 @@
+//! Adapter implementation of [`scc::hash_map::HashMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "scchashmap"
+//! ```
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 

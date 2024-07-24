@@ -1,3 +1,14 @@
+//! Adapter implementation of [`dashmap::DashMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "dashmap"
+//! ```
+//!
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 

@@ -1,3 +1,16 @@
+//! A client of a key-value server. The server can be backed by any stores available.
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "remote"
+//! host = "..." # hostname of the server
+//! port = "..." # port of the server
+//! ```
+//!
+//! This store is [`AsyncKVMap`].
+
 use crate::server::KVClient;
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;

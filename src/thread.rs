@@ -2,7 +2,7 @@
 //!
 //! **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
 //!
-//! A [`KVMap`] implementation is generally passive. However, some store may act like a server with
+//! A key-value store is generally passive. However, some store may act like a server with
 //! active threads. In that case, one may employ its own implementation of spawn-join. If that is
 //! the case, their join handle (like `[std::thread::JoinHandle`]) should implement the
 //! [`JoinHandle`] trait and the spawn struct needs to implement `[Spawn]`.

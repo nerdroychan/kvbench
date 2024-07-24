@@ -1,3 +1,13 @@
+//! Adapter implementation of [`chashmap::CHashMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "chashmap"
+//! ```
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 

@@ -1,3 +1,14 @@
+//! Adapter implementation of [`contrie::ConMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "contrie"
+//! ```
+//!
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 

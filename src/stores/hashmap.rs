@@ -1,3 +1,27 @@
+//! Adapter implementation of [`hashbrown::HashMap`]. Sharded, and in flavors of both [`Mutex`] and
+//! [`RwLock`].
+//!
+//! ## Configuration Format
+//!
+//! ### [`Mutex`]-based:
+//!
+//! ``` toml
+//! [map]
+//! name = "mutex_hashmap"
+//! shards = ... # number of shards
+//! ```
+//!
+//! This store is [`KVMap`].
+//!
+//! ### [`RwLock`]-based:
+//! ``` toml
+//! [map]
+//! name = "rwlock_hashmap"
+//! shards = ... # number of shards
+//! ```
+//!
+//! This store is [`KVMap`].
+
 use crate::stores::*;
 use ::hashbrown::HashMap;
 use parking_lot::{Mutex, RwLock};

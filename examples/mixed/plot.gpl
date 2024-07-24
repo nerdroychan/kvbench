@@ -1,0 +1,15 @@
+set terminal pdf
+set ylabel "Throughput (MOP/s)"
+set xlabel "Time (sec)"
+set key left top
+
+set output "mixed.pdf"
+plot [0:21] [0:] \
+    "chashmap.txt" using ($1*$7+1):13 with lp ti "chashmap",\
+    "contrie.txt" using ($1*$7+1):13 with lp ti "contrie",\
+    "dashmap.txt" using ($1*$7+1):13 with lp ti "dashmap",\
+    "flurry.txt" using ($1*$7+1):13 with lp ti "flurry",\
+    "papaya.txt" using ($1*$7+1):13 with lp ti "papaya",\
+    "scchashmap.txt" using ($1*$7+1):13 with lp ti "scchashmap",\
+    "mutex_hashmap.txt" using ($1*$7+1):13 with lp ti "mutexhashmap",\
+    "rwlock_hashmap.txt" using ($1*$7+1):13 with lp ti "rwlockhashmap"

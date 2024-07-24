@@ -1,3 +1,14 @@
+//! Adapter implementation of [`flurry::HashMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "flurry"
+//! ```
+//!
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 

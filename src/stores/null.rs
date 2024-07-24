@@ -1,7 +1,28 @@
+//! A store that does nothing. It can be used to measure overheads of the crate.
+//!
+//! ## Configuration Format
+//!
+//! ### Regular
+//!
+//! ``` toml
+//! [map]
+//! name = "nullmap"
+//! ```
+//!
+//! This store is [`KVMap`].
+//!
+//! ### Async
+//!
+//! ``` toml
+//! [map]
+//! name = "nullmap_async"
+//! ```
+//!
+//! This store is [`AsyncKVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 
-/// It does nothing. It can be used to measure overheads in the future.
 #[derive(Clone)]
 pub struct NullMap;
 

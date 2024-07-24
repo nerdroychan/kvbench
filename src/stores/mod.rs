@@ -15,7 +15,8 @@
 //! ```
 //! The field `name` must be given and it should be equal to the name registered by the store.
 //! Other than `name`, all the fields are parsed as a string map and will be hand over to the
-//! constructor of the store's constructor function.
+//! constructor of the store's constructor function. For available options other than `name`, one
+//! can refer to the module-level documentation of a specific store.
 //!
 //! ## Registering New Stores
 //!
@@ -123,16 +124,6 @@ pub mod papaya;
 pub mod remote;
 pub mod scc;
 
-pub use chashmap::*;
-pub use contrie::*;
-pub use dashmap::*;
-pub use flurry::*;
-pub use hashmap::*;
-pub use null::*;
-pub use papaya::*;
-pub use remote::*;
-pub use scc::*;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,57 +146,57 @@ mod tests {
 
     #[test]
     fn nullmap() {
-        let mut map = NullMap::new();
+        let mut map = null::NullMap::new();
         assert!(map.get("foo".as_bytes().into()).is_none());
     }
 
     #[test]
     fn mutex_hashmap() {
-        let opt = MutexHashMapOpt { shards: 512 };
-        let mut map = MutexHashMap::new(&opt);
+        let opt = hashmap::MutexHashMapOpt { shards: 512 };
+        let mut map = hashmap::MutexHashMap::new(&opt);
         map_test(&mut map);
     }
 
     #[test]
     fn rwlock_hashmap() {
-        let opt = RwLockHashMapOpt { shards: 512 };
-        let mut map = RwLockHashMap::new(&opt);
+        let opt = hashmap::RwLockHashMapOpt { shards: 512 };
+        let mut map = hashmap::RwLockHashMap::new(&opt);
         map_test(&mut map);
     }
 
     #[test]
     fn dashmap() {
-        let mut map = DashMap::new();
+        let mut map = dashmap::DashMap::new();
         map_test(&mut map);
     }
 
     #[test]
     fn contrie() {
-        let mut map = Contrie::new();
+        let mut map = contrie::Contrie::new();
         map_test(&mut map);
     }
 
     #[test]
     fn chashmap() {
-        let mut map = CHashMap::new();
+        let mut map = chashmap::CHashMap::new();
         map_test(&mut map);
     }
 
     #[test]
     fn scchashmap() {
-        let mut map = SccHashMap::new();
+        let mut map = scc::SccHashMap::new();
         map_test(&mut map);
     }
 
     #[test]
     fn flurry() {
-        let mut map = Flurry::new();
+        let mut map = flurry::Flurry::new();
         map_test(&mut map);
     }
 
     #[test]
     fn papaya() {
-        let mut map = Papaya::new();
+        let mut map = papaya::Papaya::new();
         map_test(&mut map);
     }
 }

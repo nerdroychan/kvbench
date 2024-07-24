@@ -1,3 +1,14 @@
+//! Adapter implementation of [`papaya::HashMap`].
+//!
+//! ## Configuration Format
+//!
+//! ``` toml
+//! [map]
+//! name = "papaya"
+//! ```
+//!
+//! This store is [`KVMap`].
+
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 
