@@ -1,5 +1,7 @@
 //! Spawn-join functionality.
 //!
+//! **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
+//!
 //! A KVMap implementation is generally passive. However, some KVMap may act like a server with
 //! active threads. In that case, one may employ its own implementation of spawn-join. If that is
 //! the case, their join handle (like std::thread::JoinHandle) should implement the JoinHandle

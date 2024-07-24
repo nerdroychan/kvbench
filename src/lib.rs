@@ -11,7 +11,20 @@
 //! trait, depending on the type of the store. After registering your store, simply reuse the
 //! exported [`cmdline()`] in your `main` function and it will work seamlessly with your own store.
 //!
-//! More detailed usage could be found in the module-level rustdocs.
+//! A few noteworthy design choices include:
+//!
+//! - Each key-value store exclusively stores a single type of key/value pair: variable-sized byte
+//! arrays represented as [`u8`] slices on the heap. No generics over the key's type.
+//! - The key-value store and the benchmark configurations are black boxes. They are created
+//! dynamically from a TOML file, and dynamically dispatched.
+//! - Benchmark functionalities can be reused in users' own crates: new key-value stores can be
+//! dynamically registered without touching the source code of this crate.
+//!
+//! More detailed usage could be found in the module-level rustdocs:
+//!
+//! - [`mod@bench`] for the config format of a benchmark.
+//! - [`mod@stores`] for the config format of a built-in key-value store.
+//! - [`cmdline()`] for the usage of the default command line interface.
 
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -29,20 +42,23 @@ pub trait KVMap: Send + Sync + 'static {
     /// For most stores, this can just be done using an Arc.
     fn handle(&self) -> Box<dyn KVMapHandle>;
 
-    /// The main bench method, with its default implementation usually doesn't need manual
-    /// implementation unless the implementor needs custom thread spawn-join functions.
-    /// If one would like to manually implement this method, it is needed to explicitly declare a
-    /// new [`thread::Thread`] object and pass it to [`bench::bench_regular`].
+    /// The main bench method.
+    ///
+    /// Users usually don't need to manually implement this method unless the implementor needs
+    /// custom thread spawn-join functions. If one would like to do so, it is needed to explicitly
+    /// declare a new [`thread::Thread`] object and pass it to [`bench::bench_regular`].
     fn bench(self: Box<Self>, phases: &Vec<Arc<crate::bench::Benchmark>>) {
         let map = Arc::new(self);
         let thread = crate::thread::DefaultThread;
         crate::bench::bench_regular(map, phases, thread);
     }
 
-    /// Start the main loop of KV server while using this map as the backend. There is no need to
-    /// manually implement this method unless the implementor needs custom thread spawn-join
-    /// functions. If one would like to manually implement this method, it is needed to explicitly
-    /// declare a new [`thread::Thread`] object and pass it to [`server::server_regular`].
+    /// Start the main loop of KV server while using this map as the backend.
+    ///
+    /// There is no need to manually implement this method unless the implementor needs custom
+    /// thread spawn-join functions. If one would like to manually implement this method, it is
+    /// needed to explicitly declare a new [`thread::Thread`] object and pass it to
+    /// [`server::server_regular`].
     fn server(
         self: Box<Self>,
         host: &str,
@@ -108,7 +124,7 @@ pub struct Response {
     pub data: Option<Box<[u8]>>,
 }
 
-/// An non-blocking, thread-safe key-value map.
+/// A non-blocking, thread-safe key-value map.
 ///
 /// Unlike [`KVMap`], [`AsyncKVMap`] works in request/response style. Where each handle needs to be
 /// created by registering an explicit responder that serves as the "callback" when the underlying

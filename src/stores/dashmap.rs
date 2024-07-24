@@ -1,4 +1,4 @@
-use crate::bench::{BenchKVMap, Registry};
+use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 
 #[derive(Clone)]

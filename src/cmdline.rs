@@ -1,4 +1,4 @@
-use crate::bench::*;
+use crate::stores::{BenchKVMap, Registry};
 use clap::ValueHint::FilePath;
 use clap::{Args, Parser, Subcommand};
 use log::debug;
@@ -53,7 +53,7 @@ fn bench_cli(args: &BenchArgs) {
         read_to_string(s.as_str()).unwrap() + "\n" + &read_to_string(b.as_str()).unwrap()
     };
 
-    let (map, phases) = init(&opt);
+    let (map, phases) = crate::bench::init(&opt);
     map.bench(&phases);
 }
 

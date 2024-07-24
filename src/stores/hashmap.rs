@@ -1,6 +1,4 @@
-use crate::bench::{BenchKVMap, Registry};
 use crate::stores::*;
-use crate::*;
 use ::hashbrown::HashMap;
 use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;

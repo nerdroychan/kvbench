@@ -126,10 +126,6 @@ pub struct WorkloadOpt {
     /// Percentage of `DELETE` operations.
     pub del_perc: u8,
 
-    // Section of key/value generation
-    // (klen, vlen, kmin, kmax) are marked optional because one may not specify them in each
-    // individual workload, but instead in benchmark settings, and the bench module will take care
-    // of it. So they must not be None when creating a workload.
     /// Key length in bytes.
     pub klen: Option<usize>,
 
@@ -143,12 +139,19 @@ pub struct WorkloadOpt {
     pub kmax: Option<usize>,
 
     /// Key distribution.
+    ///
+    /// - "increment": sequentially incrementing from `kmin` to `kmax`.
+    /// - "incrementp": partitioned `increment`, where each thread takes a range of keys.
+    /// - "uniform": uniformly random keys from `kmin` to `kmax`.
+    /// - "zipfian": random keys from `kmin` to `kmax` following Zipfian distribution.
     pub dist: String,
 
     /// The theta parameter for Zipfian distribution. (Optional, default 1.0)
     pub zipf_theta: Option<f64>,
 
     /// The hotspot location for Zipfian distribution. (Optional, default 0.0)
+    ///
+    /// 0.0 means the first key. 0.5 means approximately the middle in the key space.
     pub zipf_hotspot: Option<f64>,
 }
 

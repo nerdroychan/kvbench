@@ -5,31 +5,31 @@ edition = "2021"
 exclude = ["presets", "examples"]
 
 [dependencies]
-serde = { version = "*", features = ["derive"] }
-bincode = "*"
-chashmap = "*"
-contrie = "*"
-mio = { version = "*", features = ["net", "os-poll"] }
-dashmap = { version = "*", features = ["inline"] }
-parking_lot = "*"
-clap = { version = "=4.0.0", features = ["derive"] }
-rand = "*"
-log = "*"
-zipf = "*"
-serial_test = "*"
-env_logger = "*"
-jemallocator = "*"
-toml = "*"
-inventory = "*"
-core_affinity = "*"
-quanta = "*"
-hashbrown = "*"
-ahash = "*"
-figment = { version = "*", features = ["toml", "env"] }
-scc = "*"
-flurry = "*"
-papaya = "*"
-ctrlc = "*"
+ahash = "0.8.11"
+bincode = "1.3.3"
+chashmap = "2.2.2"
+clap = { version = "=4.5.10", features = ["derive"] }
+contrie = "0.1.4"
+core_affinity = "0.8.1"
+ctrlc = "3.4.4"
+dashmap = { version = "6.0.1", features = ["inline"] }
+env_logger = "0.11.3"
+figment = { version = "0.10.19", features = ["toml", "env"] }
+flurry = "0.5.1"
+hashbrown = "0.14.5"
+inventory = "0.3.15"
+jemallocator = "0.5.4"
+log = "0.4.22"
+mio = { version = "1.0.0", features = ["net", "os-poll"] }
+papaya = "0.1.1"
+parking_lot = "0.12.3"
+quanta = "0.12.3"
+rand = "0.8.5"
+scc = "2.1.2"
+serde = { version = "1.0.204", features = ["derive"] }
+serial_test = "3.1.1"
+toml = "0.8.14"
+zipf = "7.0.1"
 
 [profile.release]
 debug = true

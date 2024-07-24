@@ -1,7 +1,7 @@
 //! A key-value server/client implementation.
 
-use crate::bench::{BenchKVMap, BenchKVMapOpt};
 use crate::serialization::{read_request, read_response, write_request, write_response};
+use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
 use crate::*;
 use figment::providers::{Env, Format, Toml};
@@ -439,6 +439,8 @@ fn server_mainloop(
 }
 
 /// The real server function for [`KVMap`].
+///
+/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
 pub fn server_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     host: &str,
@@ -478,6 +480,8 @@ pub fn server_regular(
 }
 
 /// The real server function for [`AsyncKVMap`].
+///
+/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
 pub fn server_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     host: &str,
@@ -636,7 +640,7 @@ struct ServerMapOpt {
     map: BenchKVMapOpt,
 }
 
-pub(crate) fn init(text: &str) -> BenchKVMap {
+pub fn init(text: &str) -> BenchKVMap {
     let opt: ServerMapOpt = Figment::new()
         .merge(Toml::string(&text))
         .merge(Env::raw())
@@ -649,7 +653,6 @@ pub(crate) fn init(text: &str) -> BenchKVMap {
 mod tests {
     use super::*;
 
-    use crate::bench::BenchKVMap;
     use crate::stores::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::mpsc::{channel, Receiver, Sender};

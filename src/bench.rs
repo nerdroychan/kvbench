@@ -1,11 +1,68 @@
 //! The core benchmark functionalities.
+//!
+//! A benchmark in this crate actually refers to a group of benchmark runs, named **phases**. Users
+//! can provide one or multiple phases that will be run sequentially, each with different
+//! configurations.
+//!
+//! ## Configuration Format
+//!
+//! A benchmark configuration file is formatted in TOML. It consists of the definition of multiple
+//! phases, each is defined in a dictionary named `benchmark`. Phases are organized in an array, so
+//! the configuration of each phase starts with `[[benchmark]]`. It also supports a `[global]`
+//! section in the configuration file that will override the missing field in each phase. This can
+//! reduce the number of repeated options in each phase (e.g., shared options).
+//!
+//! A configuration file generally looks like the following:
+//!
+//! ```toml
+//! [global]
+//! # global options
+//!
+//! [[benchmark]]
+//! # phase 1 configuration
+//!
+//! [[benchmark]]
+//! # phase 2 configuration
+//!
+//! ...
+//! ```
+//!
+//! Available options and their usage can be found in [`BenchmarkOpt`] and [`GlobalOpt`], for phase
+//! and global options, respectively.
+//!
+//! Options in `[global]` section can be overwritten via environment variables without changing the
+//! content in the TOML file.
+//! For example, if the user needs to override `x` in `[global]`, setting the envrionment variable
+//! `global.x` will get the job done.
+//!
+//! ## Output Format
+//!
+//! When measuring throughput, an output may look like the following:
+//! ```txt
+//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
+//! ```
+//!
+//! From the first element to the last element in each line, the meanings are:
+//! - Report sequence number.
+//! - "phase" followed by the phase id.
+//! - "repeat" followed by the repeat id in a phase, or "finish .", if it is the aggregated report
+//! of a whole phase.
+//! - "duration" followed by the duration of the repeat/phase, in seconds.
+//! - "elapsed" followed by the total elapsed time when this line is printed, since the starting of
+//! all the benchmarks.
+//! - "total" followed by the total key-value operations executed by all worker threads in the
+//! repeat/phase.
+//! - "mops" followed by the thorughput in million operations per second of the repeat/phase.
 
+use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
 use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
-use hashbrown::HashMap;
 use log::debug;
 use parking_lot::Mutex;
 use quanta::Instant;
@@ -14,71 +71,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
-use toml::Table;
-
-// {{{ benchmap
-
-/// A unified enum for a created key-value store that is ready to run.
-pub enum BenchKVMap {
-    Regular(Box<dyn KVMap>),
-    Async(Box<dyn AsyncKVMap>),
-}
-
-impl BenchKVMap {
-    /// Wraps the real `bench` function of the store.
-    pub fn bench(self, phases: &Vec<Arc<Benchmark>>) {
-        match self {
-            BenchKVMap::Regular(map) => {
-                KVMap::bench(map, phases);
-            }
-            BenchKVMap::Async(map) => {
-                AsyncKVMap::bench(map, phases);
-            }
-        };
-    }
-}
-
-/// The centralized registry that maps the name of newly added key-value store to its constructor
-/// function. A user-defined store can use the [`inventory::submit!`] macro to register their own
-/// stores to be used in the benchmark framework.
-pub struct Registry<'a> {
-    pub(crate) name: &'a str,
-    constructor: fn(&Table) -> BenchKVMap,
-}
-
-impl<'a> Registry<'a> {
-    pub const fn new(name: &'a str, constructor: fn(&Table) -> BenchKVMap) -> Self {
-        Self { name, constructor }
-    }
-}
-
-inventory::collect!(Registry<'static>);
-
-/// An aggregated option enum that can be parsed from a toml string. It contains all necessary
-/// parameters for each type of maps to be created.
-#[derive(Deserialize, Clone, Debug)]
-pub(crate) struct BenchKVMapOpt {
-    name: String,
-    #[serde(flatten)]
-    opt: Table,
-}
-
-impl BenchKVMap {
-    pub(crate) fn new(opt: &BenchKVMapOpt) -> BenchKVMap {
-        // construct the hashmap.. this will be done every time
-        let mut registered: HashMap<&'static str, fn(&Table) -> BenchKVMap> = HashMap::new();
-        for r in inventory::iter::<Registry> {
-            debug!("Adding supported kvmap: {}", r.name);
-            assert!(registered.insert(r.name, r.constructor).is_none()); // no existing name
-        }
-        let f = registered.get(opt.name.as_str()).unwrap_or_else(|| {
-            panic!("map {} not found in registry", opt.name);
-        });
-        f(&opt.opt)
-    }
-}
-
-// }}} benchmap
 
 // {{{ benchmark
 
@@ -106,27 +98,53 @@ enum ReportMode {
     All,
 }
 
-/// The configuration of a single benchmark deserialized from a toml string. The fields are
-/// optional to ease parsing from toml, as there can be global parameters that are set for them.
+/// The configuration of a single benchmark deserialized from a toml string.
+///
+/// The fields are optional to ease parsing from toml, as there can be global parameters that are
+/// set for them.
 #[derive(Deserialize, Clone, Debug)]
-struct BenchmarkOpt {
-    /// Number of threads that runs this benchmark.
-    threads: Option<usize>,
-    /// How many times this benchmark will be executed.
-    repeat: Option<usize>,
-    /// How long this benchmark will run, unit is seconds.
-    timeout: Option<f32>,
-    /// Fallback bound when timeout is not given.
-    ops: Option<u64>,
-    /// Report mode: "hidden", "repeat", "finish", "all"
-    report: Option<String>,
-    /// Max depth of queue for each worker (async only)
-    qd: Option<usize>,
-    /// Batch size for each request (async only)
-    batch: Option<usize>,
-    /// The definition of a workload. (flattened)
+pub struct BenchmarkOpt {
+    /// Number of threads that runs this benchmark. Default 1.
+    pub threads: Option<usize>,
+
+    /// How many times this benchmark will be repeated. Default 1.
+    pub repeat: Option<usize>,
+
+    /// How long this benchmark will run, unit is seconds. If this option is specified, the `ops`
+    /// option will be ignored.
+    ///
+    /// Note: see `ops`.
+    pub timeout: Option<f32>,
+
+    /// How many operations each worker will execute. Only used if `timeout` is not given.
+    ///
+    /// Note: if both `timeout` and `ops` are not given, the run is only stopped when all possible
+    /// keys are generated.
+    pub ops: Option<u64>,
+
+    /// Report mode:
+    ///
+    /// - "hidden": not reported.
+    /// - "repeat": after each repeat, the metrics for that repeat is printed.
+    /// - "finish": after all repeats are finished, the metrics of the whole phase is printed.
+    /// - "all": equals to "repeat" + "finish".
+    pub report: Option<String>,
+
+    /// Max depth of queue for each worker (async only).
+    ///
+    /// When the pending requests are less than `qd`, the worker will not attempt to get more
+    /// responses.
+    pub qd: Option<usize>,
+
+    /// Batch size for each request (async only).
+    pub batch: Option<usize>,
+
+    /// The definition of a workload.
+    ///
+    /// This section is embedded and flattened, so that you can directly use options in
+    /// [`WorkloadOpt`].
     #[serde(flatten)]
-    workload: WorkloadOpt,
+    pub workload: WorkloadOpt,
 }
 
 impl BenchmarkOpt {
@@ -214,22 +232,21 @@ impl Benchmark {
 
 // {{{ benchmarkgroup
 
-/// The global options that go to the [global] section in a BenchmarkGroup.
-/// They will override missing fields.
+/// The global options that go to the `[global]` section.
+///
+/// They will override missing fields in each `[[benchmark]]` section, if the corresponding option
+/// is missing. For the usage of each option, please refer to [`BenchmarkOpt`].
 #[derive(Deserialize, Clone, Debug)]
-struct GlobalOpt {
-    /// For benchmark
-    threads: Option<usize>,
-    repeat: Option<usize>,
-    qd: Option<usize>,
-    batch: Option<usize>,
-    report: Option<String>,
-
-    /// For workloads
-    klen: Option<usize>,
-    vlen: Option<usize>,
-    kmin: Option<usize>,
-    kmax: Option<usize>,
+pub struct GlobalOpt {
+    pub threads: Option<usize>,
+    pub repeat: Option<usize>,
+    pub qd: Option<usize>,
+    pub batch: Option<usize>,
+    pub report: Option<String>,
+    pub klen: Option<usize>,
+    pub vlen: Option<usize>,
+    pub kmin: Option<usize>,
+    pub kmax: Option<usize>,
 }
 
 impl Default for GlobalOpt {
@@ -297,7 +314,7 @@ struct BenchmarkGroupOpt {
 
 // {{{ bencher
 
-pub(crate) fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
+pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
     let opt: BenchmarkGroupOpt = Figment::new()
         .merge(Toml::string(text))
         .merge(Env::raw())
@@ -801,6 +818,8 @@ fn bench_phase_async(
 }
 
 /// The real benchmark function for [`KVMap`].
+///
+/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
 pub fn bench_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
@@ -822,6 +841,8 @@ pub fn bench_regular(
 }
 
 /// The real benchmark function for [`AsyncKVMap`].
+///
+/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
 pub fn bench_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
