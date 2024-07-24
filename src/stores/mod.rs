@@ -1,9 +1,9 @@
-//! The implementation of built-in key-value stores, and some util functions.
+//! The implementation of built-in key-value stores, and some helper functions.
 //!
 //! ## Configuration Format
 //!
 //! The configuration of a key-value store is stored in a dictionary named `map`. Therefore, a
-//! store's config file looks like the following:
+//! store's configuration file looks like the following:
 //!
 //! ```toml
 //! [map]
@@ -14,14 +14,14 @@
 //! ...
 //! ```
 //! The field `name` must be given and it should be equal to the name registered by the store.
-//! Other than `name`, all the fileds are parsed as a string map and will be hand over to the
+//! Other than `name`, all the fields are parsed as a string map and will be hand over to the
 //! constructor of the store's constructor function.
 //!
 //! ## Registering New Stores
 //!
 //! When users would like to dynamically register new key-value stores from their own crate, first
-//! of all, they need to implemement the corresponding [`KVMap`]/[`KVMapHandle`]
-//! (or [`AsyncKVMap`]/[`AsyncKVMapHandle`]) for the store. Then, they need to create a construcor
+//! of all, they need to implement the corresponding [`KVMap`]/[`KVMapHandle`]
+//! (or [`AsyncKVMap`]/[`AsyncKVMapHandle`]) for the store. Then, they need to create a constructor
 //! function with a signature of `fn(&toml::Table) -> BenchKVMap`.
 //!
 //! The final step is to register the store's constructor (along with its name) using
@@ -89,7 +89,7 @@ impl<'a> Registry<'a> {
 
 inventory::collect!(Registry<'static>);
 
-/// An aggregated option enum that can be parsed from a toml string. It contains all necessary
+/// An aggregated option enum that can be parsed from a TOML string. It contains all necessary
 /// parameters for each type of maps to be created.
 #[derive(Deserialize, Clone, Debug)]
 pub(crate) struct BenchKVMapOpt {

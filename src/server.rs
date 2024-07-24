@@ -61,7 +61,7 @@ pub(crate) fn serve_requests_async(
     handle.submit(requests);
 }
 
-/// Wrapper around TcpStream to enable multi-ownership in reader/writer for the same connection
+/// Wrapper around [`TcpStream`] to enable multi-ownership in reader/writer for the same connection
 #[derive(Clone)]
 struct RcTcpStream(Rc<TcpStream>);
 
@@ -114,7 +114,7 @@ impl BufRead for RequestReader {
 }
 
 /// Unlike reader, writer is registered to one or more handles. Therefore, it needs a cell to work,
-/// and potentially a wrapper rc.
+/// and potentially a wrapper [`Rc`].
 struct ResponseWriter(RefCell<BufWriter<RcTcpStream>>);
 
 impl ResponseWriter {
@@ -440,7 +440,7 @@ fn server_mainloop(
 
 /// The real server function for [`KVMap`].
 ///
-/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
+/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
 pub fn server_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     host: &str,
@@ -481,7 +481,7 @@ pub fn server_regular(
 
 /// The real server function for [`AsyncKVMap`].
 ///
-/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
+/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
 pub fn server_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     host: &str,

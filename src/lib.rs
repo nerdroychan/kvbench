@@ -44,7 +44,7 @@ pub trait KVMap: Send + Sync + 'static {
 
     /// The main bench method.
     ///
-    /// Users usually don't need to manually implement this method unless the implementor needs
+    /// Users usually don't need to manually implement this method unless the implementer needs
     /// custom thread spawn-join functions. If one would like to do so, it is needed to explicitly
     /// declare a new [`thread::Thread`] object and pass it to [`bench::bench_regular`].
     fn bench(self: Box<Self>, phases: &Vec<Arc<crate::bench::Benchmark>>) {
@@ -55,7 +55,7 @@ pub trait KVMap: Send + Sync + 'static {
 
     /// Start the main loop of KV server while using this map as the backend.
     ///
-    /// There is no need to manually implement this method unless the implementor needs custom
+    /// There is no need to manually implement this method unless the implementer needs custom
     /// thread spawn-join functions. If one would like to manually implement this method, it is
     /// needed to explicitly declare a new [`thread::Thread`] object and pass it to
     /// [`server::server_regular`].
@@ -131,7 +131,7 @@ pub struct Response {
 /// routine produces a response.
 ///
 /// Specifically, for benchmark, each worker thread maintains just one handle, so the buffer is
-/// per-worker. For server, each worker may manage multiple coneections. Each connection needs its
+/// per-worker. For server, each worker may manage multiple connections. Each connection needs its
 /// own responder (we should not mix responses for different connections, obviously). Therefore, it
 /// creates a handle for each incoming connection, and maintains a responder for it.
 pub trait AsyncKVMap: Sync + Send + 'static {

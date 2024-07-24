@@ -8,7 +8,7 @@ use rand::Rng;
 use serde::Deserialize;
 use zipf::ZipfDistribution;
 
-/// OperationType is for internal use in the workload mod. It is essentially Operation without
+/// This is for internal use in the workload mod. It is essentially Operation without
 /// generated keys, values, or other parameters. They are generated based on a Mix defined below.
 #[derive(Clone)]
 enum OperationType {
@@ -51,7 +51,7 @@ enum KeyDistribution {
 }
 
 /// Key generator that takes care of synthetic keys based on a distribution. Currently it only
-/// generates fixed-sized keys based on the parameters of length and keyspace size.
+/// generates fixed-sized keys based on the parameters of length and key space size.
 #[derive(Debug)]
 struct KeyGenerator {
     len: usize,
@@ -111,7 +111,7 @@ impl KeyGenerator {
     }
 }
 
-/// A set of workload parameters that can be deserialized from a toml string.
+/// A set of workload parameters that can be deserialized from a TOML string.
 ///
 /// This struct is used for interacting with workload configuration files and also create new
 /// [`Workload`] instances.
@@ -155,7 +155,7 @@ pub struct WorkloadOpt {
     pub zipf_hotspot: Option<f64>,
 }
 
-/// The minimal unit of workload context with its access pattern (mix and kgen).
+/// The minimal unit of workload context with its access pattern (mix and key generator).
 ///
 /// The values generated internally are fixed-sized only for now, similar to the keys. To
 /// pressurize the

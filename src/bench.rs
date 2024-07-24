@@ -1,4 +1,4 @@
-//! The core benchmark functionalities.
+//! The core benchmark functionality.
 //!
 //! A benchmark in this crate actually refers to a group of benchmark runs, named **phases**. Users
 //! can provide one or multiple phases that will be run sequentially, each with different
@@ -32,7 +32,7 @@
 //!
 //! Options in `[global]` section can be overwritten via environment variables without changing the
 //! content in the TOML file.
-//! For example, if the user needs to override `x` in `[global]`, setting the envrionment variable
+//! For example, if the user needs to override `x` in `[global]`, setting the environment variable
 //! `global.x` will get the job done.
 //!
 //! ## Output Format
@@ -55,7 +55,7 @@
 //! all the benchmarks.
 //! - "total" followed by the total key-value operations executed by all worker threads in the
 //! repeat/phase.
-//! - "mops" followed by the thorughput in million operations per second of the repeat/phase.
+//! - "mops" followed by the throughput in million operations per second of the repeat/phase.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
@@ -98,9 +98,9 @@ enum ReportMode {
     All,
 }
 
-/// The configuration of a single benchmark deserialized from a toml string.
+/// The configuration of a single benchmark deserialized from a TOML string.
 ///
-/// The fields are optional to ease parsing from toml, as there can be global parameters that are
+/// The fields are optional to ease parsing from TOML, as there can be global parameters that are
 /// set for them.
 #[derive(Deserialize, Clone, Debug)]
 pub struct BenchmarkOpt {
@@ -372,7 +372,7 @@ fn bench_phase_should_break(
 }
 
 struct Measurement {
-    /// An counter for each repeat in the same benchmark. Using AtomicU64 here makes the
+    /// An counter for each repeat in the same benchmark. Using [`AtomicU64`] here makes the
     /// measurement Sync + Send so it can be freely accessed by different threads (mainly by the
     /// thread that aggregates the overall measurement.) This value is actively updated and loosely
     /// read.
@@ -429,7 +429,7 @@ struct WorkerContext {
     /// Barrier that syncs all workers
     barrier: Arc<Barrier>,
 
-    /// (worker_id, nr_threads) pair, used to determine the identity of a worker and also
+    /// `(worker_id, nr_threads)` pair, used to determine the identity of a worker and also
     thread_info: (usize, usize),
 }
 
@@ -819,7 +819,7 @@ fn bench_phase_async(
 
 /// The real benchmark function for [`KVMap`].
 ///
-/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
+/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
 pub fn bench_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,
@@ -842,7 +842,7 @@ pub fn bench_regular(
 
 /// The real benchmark function for [`AsyncKVMap`].
 ///
-/// **You may not need to check this if it is ok to run benchmarks with [`std::thread`].**
+/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
 pub fn bench_async(
     map: Arc<Box<impl AsyncKVMap + ?Sized>>,
     phases: &Vec<Arc<Benchmark>>,

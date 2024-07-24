@@ -1,7 +1,7 @@
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 
-/// NullMap does nothing. It can be used to measure overheads in the future.
+/// It does nothing. It can be used to measure overheads in the future.
 #[derive(Clone)]
 pub struct NullMap;
 

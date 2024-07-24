@@ -4,9 +4,9 @@ use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;
 use std::sync::Arc;
 
-/// A wrapper around raw HashMap with variable-sized keys and values.
+/// A wrapper around raw [`HashMap`] with variable-sized keys and values.
 ///
-/// It is used as the builing block of other types. Note that this is not [`KVMap`].
+/// It is used as the building block of other types. Note that this is not [`KVMap`].
 pub type BaseHashMap = HashMap<Box<[u8]>, Box<[u8]>>;
 
 #[derive(Clone)]
