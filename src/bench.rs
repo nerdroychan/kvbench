@@ -902,7 +902,7 @@ mod tests {
     }
 
     #[test]
-    fn example_mutex() {
+    fn example_mutex_hashmap() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/mutex_hashmap.toml"
@@ -911,7 +911,7 @@ mod tests {
     }
 
     #[test]
-    fn example_rwlock() {
+    fn example_rwlock_hashmap() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/rwlock_hashmap.toml"
@@ -969,6 +969,24 @@ mod tests {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/papaya.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_mutex_btreemap() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/mutex_btreemap.toml"
+        ));
+        example(OPT);
+    }
+
+    #[test]
+    fn example_rwlock_btreemap() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/rwlock_btreemap.toml"
         ));
         example(OPT);
     }

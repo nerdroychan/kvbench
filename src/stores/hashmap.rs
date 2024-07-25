@@ -1,5 +1,4 @@
-//! Adapter implementation of [`hashbrown::HashMap`]. Sharded, and in flavors of both [`Mutex`] and
-//! [`RwLock`].
+//! Adapter implementation of [`hashbrown::HashMap`]. Internally sharded.
 //!
 //! ## Configuration Format
 //!

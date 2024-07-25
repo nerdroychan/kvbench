@@ -905,14 +905,14 @@ mod tests {
     }
 
     #[test]
-    fn batch_mutex() {
+    fn batch_mutex_hashmap() {
         let opt = hashmap::MutexHashMapOpt { shards: 512 };
         let map = BenchKVMap::Regular(Box::new(hashmap::MutexHashMap::new(&opt)));
         batch(map);
     }
 
     #[test]
-    fn batch_rwlock() {
+    fn batch_rwlock_hashmap() {
         let opt = hashmap::RwLockHashMapOpt { shards: 512 };
         let map = BenchKVMap::Regular(Box::new(hashmap::RwLockHashMap::new(&opt)));
         batch(map);
@@ -951,6 +951,18 @@ mod tests {
     #[test]
     fn batch_papaya() {
         let map = BenchKVMap::Regular(Box::new(papaya::Papaya::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_mutex_btreemap() {
+        let map = BenchKVMap::Regular(Box::new(btreemap::MutexBTreeMap::new()));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_rwlock_btreemap() {
+        let map = BenchKVMap::Regular(Box::new(btreemap::RwLockBTreeMap::new()));
         batch(map);
     }
 }

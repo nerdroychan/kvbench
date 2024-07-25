@@ -114,6 +114,7 @@ impl BenchKVMap {
     }
 }
 
+pub mod btreemap;
 pub mod chashmap;
 pub mod contrie;
 pub mod dashmap;
@@ -197,6 +198,18 @@ mod tests {
     #[test]
     fn papaya() {
         let mut map = papaya::Papaya::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn mutex_btreemap() {
+        let mut map = btreemap::MutexBTreeMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn rwlock_btreemap() {
+        let mut map = btreemap::RwLockBTreeMap::new();
         map_test(&mut map);
     }
 }
