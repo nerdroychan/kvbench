@@ -5,7 +5,7 @@ extern crate kvbench;
 use kvbench::inventory;
 use kvbench::toml;
 
-use kvbench::bench::{BenchKVMap, Registry};
+use kvbench::stores::{BenchKVMap, Registry};
 use kvbench::{KVMap, KVMapHandle};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};

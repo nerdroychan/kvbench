@@ -1,3 +1,5 @@
+This example shows how to integrate `kvbench` into your own key-value store implementations.
+
 To compile, simply use:
 
 ```
