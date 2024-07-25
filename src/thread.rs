@@ -46,9 +46,7 @@ impl Thread for DefaultThread {
     }
 
     fn pin(&self, core: usize) {
-        let nr_cores = core_affinity::get_core_ids().unwrap().len();
-        core_affinity::set_for_current(core_affinity::CoreId {
-            id: core % nr_cores,
-        });
+        let cores = core_affinity::get_core_ids().unwrap();
+        core_affinity::set_for_current(cores[core % cores.len()]);
     }
 }
