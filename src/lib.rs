@@ -1,4 +1,4 @@
-//! A benchmarking framework designed for testing key-value stores with easily customizable
+//! A benchmark framework designed for testing key-value stores with easily customizable
 //! workloads.
 //!
 //! With `kvbench`, you can define the details of a benchmark using the TOML format, such as the
@@ -11,7 +11,7 @@
 //! trait, depending on the type of the store. After registering your store, simply reuse the
 //! exported [`cmdline()`] in your `main` function and it will work seamlessly with your own store.
 //!
-//! A few noteworthy design choices include:
+//! A few key design choices include:
 //!
 //! - Each key-value store exclusively stores a single type of key/value pair: variable-sized byte
 //! arrays represented as [`u8`] slices on the heap. No generics over the key's type.

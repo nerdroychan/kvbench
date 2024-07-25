@@ -104,10 +104,10 @@ enum ReportMode {
 /// set for them.
 #[derive(Deserialize, Clone, Debug)]
 pub struct BenchmarkOpt {
-    /// Number of threads that runs this benchmark. Default 1.
+    /// Number of threads that runs this benchmark. Default: 1.
     pub threads: Option<usize>,
 
-    /// How many times this benchmark will be repeated. Default 1.
+    /// How many times this benchmark will be repeated. Default: 1.
     pub repeat: Option<usize>,
 
     /// How long this benchmark will run, unit is seconds. If this option is specified, the `ops`
@@ -130,13 +130,13 @@ pub struct BenchmarkOpt {
     /// - "all": equals to "repeat" + "finish".
     pub report: Option<String>,
 
-    /// Max depth of queue for each worker (async only).
+    /// Max depth of queue for each worker. Only useful with [`AsyncKVMap`]. Default: 1.
     ///
     /// When the pending requests are less than `qd`, the worker will not attempt to get more
     /// responses.
     pub qd: Option<usize>,
 
-    /// Batch size for each request (async only).
+    /// Batch size for each request Only useful with [`AsyncKVMap`]. Default: 1.
     pub batch: Option<usize>,
 
     /// The definition of a workload.

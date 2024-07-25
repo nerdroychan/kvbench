@@ -5,7 +5,7 @@ DIR="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 cargo build --profile release-lto
 
 STORE_DIR=$DIR/../../presets/stores
-BENCHMARK=$DIR/../../presets/benchmarks/mixed.toml
+BENCHMARK=$DIR/mixed.toml
 
 STORES="chashmap contrie dashmap flurry papaya scchashmap mutex_hashmap rwlock_hashmap"
 

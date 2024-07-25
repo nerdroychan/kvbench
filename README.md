@@ -3,7 +3,7 @@
 ![GitHub Workflow](https://github.com/nerdroychan/kvbench/actions/workflows/test.yml/badge.svg)
 ![GPLv3](https://img.shields.io/github/license/nerdroychan/kvbench)
 
-A benchmarking framework designed for testing key-value stores with easily customizable
+A benchmark framework designed for testing key-value stores with easily customizable
 workloads.
 
 ## Introduction
@@ -14,7 +14,7 @@ in TOML-formatted files. The built-in command line interface is capable of loadi
 running the benchmarks as specified.
 
 In addition to standard single-process benchmarks, it also seamlessly incorporates a key-value
-client/server setup that operates with a dedicated server thread or machine.
+client/server implementation that operates with a dedicated server thread or machine.
 
 ## Usage
 
