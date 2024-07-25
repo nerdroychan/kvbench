@@ -18,20 +18,7 @@ client/server implementation that operates with a dedicated server thread or mac
 
 ## Usage
 
-The [Documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
-
-## Examples
-
-- [examples/your-kv-store](examples/your-kv-store): How to integrate `kvbench` into your own
-key-value store implementations.
-- [examples/readpopular](examples/readpopular): A benchmark that reads popular records in
-the store, running with different number of threads.
-- [examples/writeheavy](examples/writeheavy): A benchmark that mixes reads and writes at 1:1
-on a random record in the store, running with different number of threads.
-- [examples/mixed](examples/mixed): A benchmark that consists of multiple phases (5 seconds
-running time each), benchmarked with 32 threads.
-
-The built-in configuration files used by the above benchmarks can be found in [presets](presets).
+The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 ## Development
 
