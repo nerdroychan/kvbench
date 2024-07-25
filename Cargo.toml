@@ -1,12 +1,12 @@
 [package]
 name = "kvbench"
-version = "0.1.0"
+version = "0.1.1-alpha"
 authors = ["Chen Chen <mail@roychan.org>"]
 description = "A key-value store benchmark framework with customizable workloads"
 edition = "2021"
 readme = "README.md"
 repository = "https://www.github.com/nerdroychan/kvbench"
-license-file = "LICENSE"
+license = "GPL-3.0"
 keywords = ["benchmark", "key-value"]
 categories = ["concurrency", "development-tools::profiling", "development-tools::testing"]
 exclude = ["examples"]
