@@ -115,7 +115,7 @@ pub struct Request {
 }
 
 /// A response sent by a server to a client.
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug)]
 pub struct Response {
     /// The `id` of the corresponding request.
     pub id: usize,
@@ -188,7 +188,6 @@ impl AsyncResponder for RefCell<Vec<Response>> {
 
 pub mod bench;
 mod cmdline;
-mod serialization;
 pub mod server;
 pub mod stores;
 pub mod thread;

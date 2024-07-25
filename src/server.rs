@@ -1,6 +1,5 @@
 //! A key-value server/client implementation.
 
-use crate::serialization::{read_request, read_response, write_request, write_response};
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
 use crate::*;
@@ -18,6 +17,69 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
+
+/// Requests are sent in a batch. Here we do not send the requests in the batch one by one, but
+/// instead in a vector, because the server implementation uses event-based notification. It does
+/// not know how many requests are there during an event, so it may not read all requests,
+/// especially when the batch is large.
+fn write_requests(writer: &mut impl Write, requests: &Vec<Request>) -> Result<(), bincode::Error> {
+    bincode::serialize_into(writer, requests)
+}
+
+fn read_requests(reader: &mut impl Read) -> Result<Vec<Request>, bincode::Error> {
+    bincode::deserialize_from::<_, Vec<Request>>(reader)
+}
+
+/// Responses have a customized header and the (de)serialization process is manual because the
+/// payload (data) in a response may be from a reference. It is preferable to directly write the
+/// bytes from the reference to the writer instead of creating a new [`Response`] and perform a
+/// copy of the payload data.
+#[derive(Serialize, Deserialize)]
+struct ResponseHeader {
+    id: usize,
+    len: usize,
+}
+
+fn write_response(
+    writer: &mut impl Write,
+    id: usize,
+    data: Option<&[u8]>,
+) -> Result<(), bincode::Error> {
+    let len = match data {
+        Some(data) => data.len(),
+        None => 0,
+    };
+    let header = ResponseHeader { id, len };
+    if let Err(e) = bincode::serialize_into(&mut *writer, &header) {
+        return Err(e);
+    }
+    // has payload
+    if len != 0 {
+        if let Err(e) = writer.write_all(data.unwrap()) {
+            return Err(bincode::Error::from(e));
+        }
+    }
+    Ok(())
+}
+
+fn read_response(reader: &mut impl Read) -> Result<Response, bincode::Error> {
+    let header = bincode::deserialize_from::<_, ResponseHeader>(&mut *reader)?;
+    let id = header.id;
+    let len = header.len;
+    if len != 0 {
+        let mut data = vec![0u8; len].into_boxed_slice();
+        if let Err(e) = reader.read_exact(&mut data[..]) {
+            Err(bincode::Error::from(e))
+        } else {
+            Ok(Response {
+                id,
+                data: Some(data),
+            })
+        }
+    } else {
+        Ok(Response { id, data: None })
+    }
+}
 
 const POLLING_TIMEOUT: Option<Duration> = Some(Duration::new(0, 0));
 
@@ -185,10 +247,10 @@ fn recv_requests(reader: &mut RequestReader) -> Vec<Request> {
     assert!(reader.fill_buf().is_ok());
     let mut requests = Vec::new();
 
+    // here we must drain the buffer until it is empty, because one event may consist of multiple
+    // batches, usually when the client keeps sending.
     while !reader.0.buffer().is_empty() {
-        let reader = &mut *reader;
-        let request = read_request(reader).unwrap();
-        requests.push(request);
+        requests.append(&mut read_requests(reader).unwrap());
     }
 
     requests
@@ -206,7 +268,7 @@ fn server_worker_regular_main(
         assert!(connection.writer().flush().is_ok());
     }
     assert!(poll.poll(events, POLLING_TIMEOUT).is_ok());
-    for event in events as &Events {
+    for event in events.iter() {
         let token = event.token();
         assert_ne!(token, Token(0));
         if event.is_read_closed() || event.is_write_closed() {
@@ -543,9 +605,7 @@ impl KVClient {
     }
 
     pub(crate) fn send_requests(&mut self, requests: &Vec<Request>) {
-        for r in requests {
-            assert!(write_request(&mut self.request_writer, r).is_ok())
-        }
+        assert!(write_requests(&mut self.request_writer, requests).is_ok());
         assert!(self.request_writer.flush().is_ok());
     }
 
@@ -804,7 +864,6 @@ mod tests {
             for j in 0..NR_BATCHES {
                 client.send_requests(&batch[j]);
                 pending += BATCH_SIZE;
-                // println!("send: client {} batch {} pending {}", i, j, pending);
                 loop {
                     let response = client.recv_responses();
                     for r in response {
@@ -821,7 +880,6 @@ mod tests {
                         break;
                     }
                 }
-                // println!("recv: client {} batch {} pending {}", i, j, pending);
             }
             // finish remaining
             loop {
