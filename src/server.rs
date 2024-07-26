@@ -769,50 +769,56 @@ mod tests {
     }
 
     #[test]
-    fn simple_mutex() {
+    fn simple_mutex_hashmap() {
         let opt = hashmap::MutexHashMapOpt { shards: 512 };
         let map = BenchKVMap::Regular(Box::new(hashmap::MutexHashMap::new(&opt)));
         simple(map);
     }
 
     #[test]
-    fn simple_rwlock() {
+    fn simple_rwlock_hashmap() {
         let opt = hashmap::RwLockHashMapOpt { shards: 512 };
         let map = BenchKVMap::Regular(Box::new(hashmap::RwLockHashMap::new(&opt)));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "dashmap")]
     fn simple_dashmap() {
         let map = BenchKVMap::Regular(Box::new(dashmap::DashMap::new()));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "contrie")]
     fn simple_contrie() {
         let map = BenchKVMap::Regular(Box::new(contrie::Contrie::new()));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "chashmap")]
     fn simple_chashmap() {
         let map = BenchKVMap::Regular(Box::new(chashmap::CHashMap::new()));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "scc")]
     fn simple_scchashmap() {
         let map = BenchKVMap::Regular(Box::new(scc::SccHashMap::new()));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "flurry")]
     fn simple_flurry() {
         let map = BenchKVMap::Regular(Box::new(flurry::Flurry::new()));
         simple(map);
     }
 
     #[test]
+    #[cfg(feature = "papaya")]
     fn simple_papaya() {
         let map = BenchKVMap::Regular(Box::new(papaya::Papaya::new()));
         simple(map);
@@ -919,36 +925,42 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "dashmap")]
     fn batch_dashmap() {
         let map = BenchKVMap::Regular(Box::new(dashmap::DashMap::new()));
         batch(map);
     }
 
     #[test]
+    #[cfg(feature = "contrie")]
     fn batch_contrie() {
         let map = BenchKVMap::Regular(Box::new(contrie::Contrie::new()));
         batch(map);
     }
 
     #[test]
+    #[cfg(feature = "chashmap")]
     fn batch_chashmap() {
         let map = BenchKVMap::Regular(Box::new(chashmap::CHashMap::new()));
         batch(map);
     }
 
     #[test]
+    #[cfg(feature = "scc")]
     fn batch_scchashmap() {
         let map = BenchKVMap::Regular(Box::new(scc::SccHashMap::new()));
         batch(map);
     }
 
     #[test]
+    #[cfg(feature = "flurry")]
     fn batch_flurry() {
         let map = BenchKVMap::Regular(Box::new(flurry::Flurry::new()));
         batch(map);
     }
 
     #[test]
+    #[cfg(feature = "papaya")]
     fn batch_papaya() {
         let map = BenchKVMap::Regular(Box::new(papaya::Papaya::new()));
         batch(map);

@@ -920,6 +920,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "dashmap")]
     fn example_dashmap() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -929,6 +930,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "contrie")]
     fn example_contrie() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -938,6 +940,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "chashmap")]
     fn example_chashmap() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -947,6 +950,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "scc")]
     fn example_scchashmap() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -956,6 +960,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "flurry")]
     fn example_flurry() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -965,6 +970,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "papaya")]
     fn example_papaya() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

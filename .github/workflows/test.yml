@@ -8,10 +8,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  check-build-test:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
     - uses: actions/cache@v4
@@ -23,7 +21,16 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+    - uses: baptiste0928/cargo-install@v3
+      with:
+        crate: cargo-hack
+    - name: check
+      run: cargo hack check --feature-powerset --no-dev-deps
     - name: build
-      run: cargo build --verbose --release
-    - name: tests
-      run: cargo test --release
+      run: |
+        cargo build --verbose --release
+        cargo build --verbose --release --all-features
+    - name: test
+      run: |
+        cargo test --release
+        cargo test --release --all-features

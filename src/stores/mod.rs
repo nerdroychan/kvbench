@@ -115,14 +115,20 @@ impl BenchKVMap {
 }
 
 pub mod btreemap;
+#[cfg(feature = "chashmap")]
 pub mod chashmap;
+#[cfg(feature = "contrie")]
 pub mod contrie;
+#[cfg(feature = "dashmap")]
 pub mod dashmap;
+#[cfg(feature = "flurry")]
 pub mod flurry;
 pub mod hashmap;
 pub mod null;
+#[cfg(feature = "papaya")]
 pub mod papaya;
 pub mod remote;
+#[cfg(feature = "scc")]
 pub mod scc;
 
 #[cfg(test)]
@@ -146,9 +152,43 @@ mod tests {
     }
 
     #[test]
-    fn nullmap() {
-        let mut map = null::NullMap::new();
-        assert!(map.get("foo".as_bytes().into()).is_none());
+    fn mutex_btreemap() {
+        let mut map = btreemap::MutexBTreeMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    fn rwlock_btreemap() {
+        let mut map = btreemap::RwLockBTreeMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    #[cfg(feature = "chashmap")]
+    fn chashmap() {
+        let mut map = chashmap::CHashMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    #[cfg(feature = "contrie")]
+    fn contrie() {
+        let mut map = contrie::Contrie::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    #[cfg(feature = "dashmap")]
+    fn dashmap() {
+        let mut map = dashmap::DashMap::new();
+        map_test(&mut map);
+    }
+
+    #[test]
+    #[cfg(feature = "flurry")]
+    fn flurry() {
+        let mut map = flurry::Flurry::new();
+        map_test(&mut map);
     }
 
     #[test]
@@ -166,50 +206,22 @@ mod tests {
     }
 
     #[test]
-    fn dashmap() {
-        let mut map = dashmap::DashMap::new();
-        map_test(&mut map);
-    }
-
-    #[test]
-    fn contrie() {
-        let mut map = contrie::Contrie::new();
-        map_test(&mut map);
-    }
-
-    #[test]
-    fn chashmap() {
-        let mut map = chashmap::CHashMap::new();
-        map_test(&mut map);
-    }
-
-    #[test]
-    fn scchashmap() {
-        let mut map = scc::SccHashMap::new();
-        map_test(&mut map);
-    }
-
-    #[test]
-    fn flurry() {
-        let mut map = flurry::Flurry::new();
-        map_test(&mut map);
-    }
-
-    #[test]
+    #[cfg(feature = "papaya")]
     fn papaya() {
         let mut map = papaya::Papaya::new();
         map_test(&mut map);
     }
 
     #[test]
-    fn mutex_btreemap() {
-        let mut map = btreemap::MutexBTreeMap::new();
-        map_test(&mut map);
+    fn nullmap() {
+        let mut map = null::NullMap::new();
+        assert!(map.get("foo".as_bytes().into()).is_none());
     }
 
     #[test]
-    fn rwlock_btreemap() {
-        let mut map = btreemap::RwLockBTreeMap::new();
+    #[cfg(feature = "scc")]
+    fn scchashmap() {
+        let mut map = scc::SccHashMap::new();
         map_test(&mut map);
     }
 }
