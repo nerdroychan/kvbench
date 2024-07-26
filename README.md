@@ -1,7 +1,7 @@
 # kvbench
 
-![GitHub Workflow](https://github.com/nerdroychan/kvbench/actions/workflows/test.yml/badge.svg)
-![GPLv3](https://img.shields.io/github/license/nerdroychan/kvbench)
+[![Crates.io Version](https://img.shields.io/crates/v/kvbench)](https://crates.io/crates/kvbench/)
+[![Docs.rs Status](https://img.shields.io/docsrs/kvbench)](https://docs.rs/kvbench/)
 
 A benchmark framework designed for testing key-value stores with easily customizable
 workloads.
