@@ -63,6 +63,8 @@ use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
 use figment::providers::{Env, Format, Toml};
 use figment::Figment;
+use hashbrown::hash_map::HashMap;
+use hdrhistogram::Histogram;
 use log::debug;
 use parking_lot::Mutex;
 use quanta::Instant;
@@ -104,10 +106,14 @@ enum ReportMode {
 /// set for them.
 #[derive(Deserialize, Clone, Debug)]
 pub struct BenchmarkOpt {
-    /// Number of threads that runs this benchmark. Default: 1.
+    /// Number of threads that runs this benchmark.
+    ///
+    /// Default: 1.
     pub threads: Option<usize>,
 
-    /// How many times this benchmark will be repeated. Default: 1.
+    /// How many times this benchmark will be repeated.
+    ///
+    /// Default: 1.
     pub repeat: Option<usize>,
 
     /// How long this benchmark will run, unit is seconds. If this option is specified, the `ops`
@@ -130,14 +136,24 @@ pub struct BenchmarkOpt {
     /// - "all": equals to "repeat" + "finish".
     pub report: Option<String>,
 
-    /// Max depth of queue for each worker. Only useful with [`AsyncKVMap`]. Default: 1.
+    /// Max depth of queue for each worker. Only useful with [`AsyncKVMap`].
     ///
     /// When the pending requests are less than `qd`, the worker will not attempt to get more
     /// responses.
+    ///
+    /// Default: 1.
     pub qd: Option<usize>,
 
-    /// Batch size for each request Only useful with [`AsyncKVMap`]. Default: 1.
+    /// Batch size for each request Only useful with [`AsyncKVMap`].
+    ///
+    /// Default: 1.
     pub batch: Option<usize>,
+
+    /// Whether or not to record latency during operation. Since measuring time is of extra cost,
+    /// enabling latency measurement usually affects the throughput metrics.
+    ///
+    /// Default: false.
+    pub latency: Option<bool>,
 
     /// The definition of a workload.
     ///
@@ -185,6 +201,7 @@ pub struct Benchmark {
     batch: usize,
     len: Length,
     report: ReportMode,
+    latency: bool,
     wopt: WorkloadOpt,
 }
 
@@ -215,6 +232,7 @@ impl Benchmark {
             "all" => ReportMode::All,
             _ => panic!("Invalid report mode provided"),
         };
+        let latency = opt.latency.unwrap();
         let wopt = opt.workload.clone();
         Self {
             threads,
@@ -223,6 +241,7 @@ impl Benchmark {
             batch,
             len,
             report,
+            latency,
             wopt,
         }
     }
@@ -243,6 +262,7 @@ pub struct GlobalOpt {
     pub qd: Option<usize>,
     pub batch: Option<usize>,
     pub report: Option<String>,
+    pub latency: Option<bool>,
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
     pub kmin: Option<usize>,
@@ -257,6 +277,7 @@ impl Default for GlobalOpt {
             qd: None,
             batch: None,
             report: None,
+            latency: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -276,6 +297,10 @@ impl GlobalOpt {
             .report
             .clone()
             .or_else(|| Some(self.report.clone().unwrap_or("all".to_string())));
+        opt.latency = opt
+            .latency
+            .clone()
+            .or_else(|| Some(self.latency.clone().unwrap_or(false)));
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -371,12 +396,73 @@ fn bench_phase_should_break(
     false
 }
 
+/// A per-worker counter for each repeat in the same benchmark. Using [`AtomicU64`] here makes the
+/// measurement `Sync` + `Send` so it can be freely accessed by different threads (mainly by the
+/// thread that aggregates the overall measurement).
+struct Counter(AtomicU64);
+
+impl Counter {
+    fn new() -> Self {
+        Self(AtomicU64::new(0))
+    }
+
+    fn read(&self) -> u64 {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    fn reference(&self) -> &mut u64 {
+        // SAFETY: the counter() method will only be called by the thread that updates its value
+        unsafe { &mut *self.0.as_ptr() }
+    }
+}
+
+/// A per-worker latency collector for each repeat in the same benchmark. This is only accessed and
+/// collected at the end of each benchmark.
+struct Latency {
+    /// Async only: request_id -> submit time
+    pending: HashMap<usize, Instant>,
+
+    /// Latency histogram in us, maximum latency recorded here is 1 second
+    hdr: Histogram<u64>,
+}
+
+impl Latency {
+    fn new() -> Self {
+        let pending = HashMap::new();
+        let hdr = Histogram::new(3).unwrap();
+        Self { pending, hdr }
+    }
+
+    fn record(&mut self, duration: Duration) {
+        let us = duration.as_nanos() as u64;
+        assert!(self.hdr.record(us).is_ok());
+    }
+
+    fn async_register(&mut self, id: usize, t: Instant) {
+        self.pending.insert(id, t);
+    }
+
+    fn async_record(&mut self, id: usize, t: Instant) {
+        let d = t - self.pending.remove(&id).unwrap();
+        self.record(d);
+    }
+
+    fn merge(&mut self, other: &Latency) {
+        assert!(self.pending.is_empty() && other.pending.is_empty());
+        assert!(self.hdr.add(&other.hdr).is_ok());
+    }
+}
+
+/// The main metrics for each worker thread in the same benchmark.
 struct Measurement {
-    /// An counter for each repeat in the same benchmark. Using [`AtomicU64`] here makes the
-    /// measurement Sync + Send so it can be freely accessed by different threads (mainly by the
-    /// thread that aggregates the overall measurement.) This value is actively updated and loosely
-    /// read.
-    counts: Vec<AtomicU64>,
+    /// Per-repeat counters. This value is actively updated by the worker and loosely evaluated by
+    /// the main thread.
+    counters: Vec<Counter>,
+
+    /// Per-worker latency metrics. This value is avtively updated by the worker if latency needs
+    /// to be checked, and is shared among all repeats. It is only merged at the end of a whole
+    /// benchmark.
+    latency: Mutex<Latency>,
 
     /// The duration of each repeat that is measured by the corresponding worker thread. It is only
     /// updated once after a repeat is really done. In a time-limited run, the master thread will
@@ -388,22 +474,14 @@ struct Measurement {
 
 impl Measurement {
     fn new(repeat: usize) -> Self {
-        let counts = (0..repeat).into_iter().map(|_| AtomicU64::new(0)).collect();
+        let counters = (0..repeat).into_iter().map(|_| Counter::new()).collect();
+        let latency = Mutex::new(Latency::new());
         let durations = (0..repeat).into_iter().map(|_| Mutex::new(None)).collect();
-        Self { counts, durations }
-    }
-
-    fn read_counter(&self, repeat: usize) -> u64 {
-        self.counts[repeat].load(Ordering::Relaxed)
-    }
-
-    fn ref_counter(&self, repeat: usize) -> &mut u64 {
-        // SAFETY: the counter() method will only be called by the thread that updates its value
-        unsafe { &mut *self.counts[repeat].as_ptr() }
-    }
-
-    fn read_duration(&self, repeat: usize) -> Option<Duration> {
-        *self.durations[repeat].lock()
+        Self {
+            counters,
+            latency,
+            durations,
+        }
     }
 }
 
@@ -448,7 +526,7 @@ fn bench_stat_repeat(
     let mut throughput = 0.0f64;
     let mut total = 0u64;
     for i in 0..thread_info.1 {
-        let d = match measurements[i].read_duration(repeat) {
+        let d = match *measurements[i].durations[repeat].lock() {
             Some(d) => d,
             None => {
                 // only applies to time-limited benchmarks
@@ -456,7 +534,7 @@ fn bench_stat_repeat(
                 start.elapsed()
             }
         };
-        let ops = measurements[i].read_counter(repeat);
+        let ops = measurements[i].counters[repeat].read();
         let tput = ops as f64 / d.as_secs_f64() / 1_000_000.0;
         total += ops;
         throughput += tput;
@@ -492,11 +570,13 @@ fn bench_stat_final(
 ) {
     assert!(thread_info.0 == 0);
     let mut total = 0u64;
+    let mut latency = Latency::new();
     for i in 0..thread_info.1 {
         for j in 0..benchmark.repeat {
-            let ops = measurements[i].read_counter(j);
+            let ops = measurements[i].counters[j].read();
             total += ops;
         }
+        latency.merge(&measurements[i].latency.lock());
     }
 
     let duration = (end - start).as_secs_f64();
@@ -505,7 +585,7 @@ fn bench_stat_final(
     let throughput = total as f64 / duration / 1_000_000.0;
 
     if benchmark.report == ReportMode::Finish || benchmark.report == ReportMode::All {
-        println!(
+        print!(
             "{} phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
             seq.load(Ordering::Relaxed),
             phase,
@@ -514,6 +594,21 @@ fn bench_stat_final(
             total,
             throughput,
         );
+        if benchmark.latency {
+            print!(" ");
+            assert_eq!(total, latency.hdr.len());
+            let hdr = &latency.hdr;
+            print!(
+                "min_ns {} max_ns {} p50_ns {} p95_ns {} p99_ns {} p999_ns {}",
+                hdr.min(),
+                hdr.max(),
+                hdr.value_at_quantile(0.50),
+                hdr.value_at_quantile(0.95),
+                hdr.value_at_quantile(0.99),
+                hdr.value_at_quantile(0.999),
+            );
+        }
+        println!();
         seq.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -536,18 +631,30 @@ fn bench_worker_regular(
     let id = thread_info.0;
     thread.pin(id);
 
+    // if record latency, take the lock guard of the latency counter until all repeats are done
+    let mut latency = match benchmark.latency {
+        true => Some(measurements[id].latency.lock()),
+        false => None,
+    };
+
+    let latency_tick = match latency {
+        Some(_) => || Some(Instant::now()),
+        None => || None,
+    };
+
     let mut handle = map.handle();
     let mut rng = rand::thread_rng();
     let mut workload = Workload::new(&benchmark.wopt, Some(thread_info));
     let start = Instant::now(); // for thread 0
     for i in 0..benchmark.repeat {
-        let counter = measurements[id].ref_counter(i);
+        let counter = measurements[id].counters[i].reference();
         // start the benchmark phase at roughly the same time
         barrier.wait();
         let start = Instant::now();
         // start benchmark
         loop {
             let op = workload.next(&mut rng);
+            let op_start = latency_tick();
             match op {
                 Operation::Set { key, value } => {
                     handle.set(&key[..], &value[..]);
@@ -558,6 +665,10 @@ fn bench_worker_regular(
                 Operation::Delete { key } => {
                     handle.delete(&key[..]);
                 }
+            }
+            let op_end = latency_tick();
+            if let Some(ref mut l) = latency {
+                l.record(op_end.unwrap() - op_start.unwrap());
             }
             *counter += 1;
             // check if we need to break
@@ -592,6 +703,8 @@ fn bench_worker_regular(
             );
         }
     }
+
+    drop(latency);
 
     // every thread will sync on this
     barrier.wait();
@@ -629,6 +742,12 @@ fn bench_worker_async(
     let id = thread_info.0;
     thread.pin(id);
 
+    // if record latency, take the lock guard of the latency counter until all repeats are done
+    let mut latency = match benchmark.latency {
+        true => Some(measurements[id].latency.lock()),
+        false => None,
+    };
+
     let responder = Rc::new(RefCell::new(Vec::<Response>::new()));
     let mut handle = map.handle(responder.clone());
     let mut rng = rand::thread_rng();
@@ -639,7 +758,7 @@ fn bench_worker_async(
     let mut rid = 0usize;
     let start = Instant::now(); // for thread 0
     for i in 0..benchmark.repeat {
-        let counter = measurements[id].ref_counter(i);
+        let counter = measurements[id].counters[i].reference();
         // start the benchmark phase at roughly the same time
         barrier.wait();
         let start = Instant::now();
@@ -664,6 +783,12 @@ fn bench_worker_async(
             let len = requests.len();
             handle.submit(&requests);
             pending += len;
+            if let Some(ref mut l) = latency {
+                let submit = Instant::now();
+                for r in requests.iter() {
+                    l.async_register(r.id, submit);
+                }
+            }
             if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
                 workload.reset();
                 break;
@@ -674,6 +799,12 @@ fn bench_worker_async(
                 handle.drain();
                 let responses = responder.replace_with(|_| Vec::new());
                 pending -= responses.len();
+                if let Some(ref mut l) = latency {
+                    let submit = Instant::now();
+                    for r in responses.iter() {
+                        l.async_record(r.id, submit);
+                    }
+                }
                 if pending <= benchmark.qd {
                     break;
                 }
@@ -714,7 +845,15 @@ fn bench_worker_async(
         handle.drain();
         let responses = responder.replace_with(|_| Vec::new());
         pending -= responses.len();
+        if let Some(ref mut l) = latency {
+            let submit = Instant::now();
+            for r in responses.iter() {
+                l.async_record(r.id, submit);
+            }
+        }
     }
+
+    drop(latency);
 
     // every thread will sync on this
     barrier.wait();
