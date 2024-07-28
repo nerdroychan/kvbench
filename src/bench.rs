@@ -37,6 +37,8 @@
 //!
 //! ## Output Format
 //!
+//! **Throughput-only measurement (default case)**
+//!
 //! When measuring throughput, an output may look like the following:
 //! ```txt
 //! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
@@ -45,17 +47,52 @@
 //! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
 //! ```
 //!
-//! From the first element to the last element in each line, the meanings are:
-//! - Report sequence number.
-//! - "phase" followed by the phase id.
-//! - "repeat" followed by the repeat id in a phase, or "finish .", if it is the aggregated report
+//! The general format is:
+//!
+//! ```txt
+//! <n> phase <p> repeat <r> duration <d> elapsed <e> total <o> mops <t>
+//! ```
+//!
+//! Where:
+//!
+//! - `<n>`: report sequence number, also the line number of the output.
+//! - `<p>`: phase id.
+//! - `<r>`: repeat id in a phase, or string `finish .`, if the line is the aggregated report
 //! of a whole phase.
-//! - "duration" followed by the duration of the repeat/phase, in seconds.
-//! - "elapsed" followed by the total elapsed time when this line is printed, since the starting of
-//! all the benchmarks.
-//! - "total" followed by the total key-value operations executed by all worker threads in the
-//! repeat/phase.
-//! - "mops" followed by the throughput in million operations per second of the repeat/phase.
+//! - `<d>`: the duration of the repeat/phase, in seconds.
+//! - `<e>`: the total elapsed time when this line is printed since the starting of the program.
+//! - `<o>`: the total key-value operations executed by all worker threads in the repeat/phase.
+//! - `<t>`: followed by the throughput in million operations per second of the repeat/phase.
+//!
+//! **Throughput+Latency measurement (when `latency` is `true`)**
+//!
+//! When latency measurement is enabled, the latency metrics shall be printed at the end of each
+//! benchmark. It is not shown after each repeat, because unlike throughput which is a singleton
+//! value at a given time, latency is a set of values and it usually matters only when we aggregate
+//! a lot of them. The output format in this case is generally the same as throughput-only
+//! measurements, but the `finish` line has extra output like the following:
+//!
+//! ```txt
+//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
+//! ```
+//!
+//! The extra output on the last line has a format of:
+//!
+//! ```txt
+//! min_ns <i> max_ns <a> p50_ns <m> p95_ns <n> p99_ns <p> p999_ns <t>
+//! ```
+//!
+//! Where (all units are nanoseconds):
+//!
+//! - `<i>`: minimum latency
+//! - `<a>`: maximum latency
+//! - `<m>`: median latency (50% percentile)
+//! - `<n>`: P95 latency
+//! - `<p>`: P99 latency
+//! - `<t>`: P999 latency (99.9%)
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
@@ -111,7 +148,10 @@ pub struct BenchmarkOpt {
     /// Default: 1.
     pub threads: Option<usize>,
 
-    /// How many times this benchmark will be repeated.
+    /// How many times this benchmark will be repeated. This option is useful when user would like
+    /// to plot the performance trend over time in the same benchmark. For example, setting this
+    /// option to 100 with one second timeout for each repeat can provide 100 data points over a
+    /// 100 second period.
     ///
     /// Default: 1.
     pub repeat: Option<usize>,
