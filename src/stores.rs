@@ -18,6 +18,11 @@
 //! constructor of the store's constructor function. For available options other than `name`, one
 //! can refer to the module-level documentation of a specific store.
 //!
+//! Similar to the `[global]` secition of a benchmark, the options in a `[map]` section can also
+//! be overwritten via environment variables.
+//! For example, if the user needs to override `x` in `[map]`, setting the environment variable
+//! `map.x` will get the job done.
+//!
 //! ## Registering New Stores
 //!
 //! When users would like to dynamically register new key-value stores from their own crate, first
