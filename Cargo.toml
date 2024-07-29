@@ -1,6 +1,6 @@
 [package]
 name = "kvbench"
-version = "0.1.1"
+version = "0.1.2-alpha"
 authors = ["Chen Chen <mail@roychan.org>"]
 description = "A key-value store benchmark framework with customizable workloads"
 edition = "2021"
