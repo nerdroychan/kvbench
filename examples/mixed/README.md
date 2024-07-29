@@ -68,6 +68,6 @@ The script file `run.sh` runs this benchmark against multiple stores with 32 thr
 Although the number of threads set in the configuration file is only 1, the number of threads are
 dynamically adjusted by setting `global.threads` to 32.
 
-5950X CPU 0-15 results ([pdf](mixed.pdf)):
+AMD Ryzen 9 5950X CPU 0-15 results ([pdf](mixed.pdf)):
 
 ![mixed](mixed.png)

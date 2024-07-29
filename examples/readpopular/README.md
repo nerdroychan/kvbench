@@ -37,6 +37,6 @@ In the second phase, worker threads execute the read-only workload that accesses
 The script file `run.sh` runs this benchmark against multiple stores with different number of
 threads. The number of threads are dynamically adjusted via `global.threads` environment variable.
 
-5950X CPU 0-15 results ([pdf](readpopular.pdf)):
+AMD Ryzen 9 5950X CPU 0-15 results ([pdf](readpopular.pdf)):
 
 ![readpopular](readpopular.png)

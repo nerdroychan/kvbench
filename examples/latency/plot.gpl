@@ -1,0 +1,74 @@
+set terminal pdf size 10,3
+set xlabel "Threads"
+set key left top
+
+set output "latency-writeheavy.pdf"
+set multiplot layout 1,3
+set ylabel "Average Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-writeheavy.txt" using 2:20 with lp ti "chashmap",\
+    "contrie-writeheavy.txt" using 2:20 with lp ti "contrie",\
+    "dashmap-writeheavy.txt" using 2:20 with lp ti "dashmap",\
+    "flurry-writeheavy.txt" using 2:20 with lp ti "flurry",\
+    "papaya-writeheavy.txt" using 2:20 with lp ti "papaya",\
+    "scchashmap-writeheavy.txt" using 2:20 with lp ti "scchashmap",\
+    "mutex_hashmap-writeheavy.txt" using 2:20 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-writeheavy.txt" using 2:20 with lp ti "rwlockhashmap"
+
+set ylabel "P99 Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-writeheavy.txt" using 2:26 with lp ti "chashmap",\
+    "contrie-writeheavy.txt" using 2:26 with lp ti "contrie",\
+    "dashmap-writeheavy.txt" using 2:26 with lp ti "dashmap",\
+    "flurry-writeheavy.txt" using 2:26 with lp ti "flurry",\
+    "papaya-writeheavy.txt" using 2:26 with lp ti "papaya",\
+    "scchashmap-writeheavy.txt" using 2:26 with lp ti "scchashmap",\
+    "mutex_hashmap-writeheavy.txt" using 2:26 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-writeheavy.txt" using 2:26 with lp ti "rwlockhashmap"
+
+set ylabel "P999 Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-writeheavy.txt" using 2:28 with lp ti "chashmap",\
+    "contrie-writeheavy.txt" using 2:28 with lp ti "contrie",\
+    "dashmap-writeheavy.txt" using 2:28 with lp ti "dashmap",\
+    "flurry-writeheavy.txt" using 2:28 with lp ti "flurry",\
+    "papaya-writeheavy.txt" using 2:28 with lp ti "papaya",\
+    "scchashmap-writeheavy.txt" using 2:28 with lp ti "scchashmap",\
+    "mutex_hashmap-writeheavy.txt" using 2:28 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-writeheavy.txt" using 2:28 with lp ti "rwlockhashmap"
+
+unset multiplot
+set output "latency-readpopular.pdf"
+set multiplot layout 1,3
+set ylabel "Average Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-readpopular.txt" using 2:20 with lp ti "chashmap",\
+    "contrie-readpopular.txt" using 2:20 with lp ti "contrie",\
+    "dashmap-readpopular.txt" using 2:20 with lp ti "dashmap",\
+    "flurry-readpopular.txt" using 2:20 with lp ti "flurry",\
+    "papaya-readpopular.txt" using 2:20 with lp ti "papaya",\
+    "scchashmap-readpopular.txt" using 2:20 with lp ti "scchashmap",\
+    "mutex_hashmap-readpopular.txt" using 2:20 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-readpopular.txt" using 2:20 with lp ti "rwlockhashmap"
+
+set ylabel "P99 Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-readpopular.txt" using 2:26 with lp ti "chashmap",\
+    "contrie-readpopular.txt" using 2:26 with lp ti "contrie",\
+    "dashmap-readpopular.txt" using 2:26 with lp ti "dashmap",\
+    "flurry-readpopular.txt" using 2:26 with lp ti "flurry",\
+    "papaya-readpopular.txt" using 2:26 with lp ti "papaya",\
+    "scchashmap-readpopular.txt" using 2:26 with lp ti "scchashmap",\
+    "mutex_hashmap-readpopular.txt" using 2:26 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-readpopular.txt" using 2:26 with lp ti "rwlockhashmap"
+
+set ylabel "P999 Latency (ns)"
+plot [0:17] [0:] \
+    "chashmap-readpopular.txt" using 2:28 with lp ti "chashmap",\
+    "contrie-readpopular.txt" using 2:28 with lp ti "contrie",\
+    "dashmap-readpopular.txt" using 2:28 with lp ti "dashmap",\
+    "flurry-readpopular.txt" using 2:28 with lp ti "flurry",\
+    "papaya-readpopular.txt" using 2:28 with lp ti "papaya",\
+    "scchashmap-readpopular.txt" using 2:28 with lp ti "scchashmap",\
+    "mutex_hashmap-readpopular.txt" using 2:28 with lp ti "mutexhashmap",\
+    "rwlock_hashmap-readpopular.txt" using 2:28 with lp ti "rwlockhashmap"
