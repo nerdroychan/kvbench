@@ -108,24 +108,25 @@
 //! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
 //! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
 //! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns ...
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns percentile ...
 //! ```
 //! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
 //! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
-//! printed as a tuple of `<ns> <count>` where `<ns>` is the latency in nanoseconds and `<count>`
-//! is the accumulated number of operations up to `<ns>`. There can be arbitrary number of tuples.
-//! The output ends when the maximum recorded latency is reached.
+//! printed as a tuple of `<ns> <percentile>` where `<ns>` is the latency in nanoseconds and
+//! `<percentile>` is the percentage of the accumulated operations with latency up to `<ns>`,
+//! ranges from 0 to 100 (two digit precision). There can be arbitrary number of tuples. The output
+//! ends when the maximum recorded latency is reached.
 //!
 //! An example of the CDF data will look like:
 //!
 //! ```txt
-//! cdf_ns 0 0 1 0 2 0 3 10 4 10 5 20 ...
+//! cdf_ns percentile 0 0.0 1 0.0 2 0.0 3 10.0 4 20.0 5 20.0 ...
 //! ```
 //!
-//! It means there are not data points at 0/1/2 nanoseconds. At 3 nanoseconds, there are 10 data
-//! points. At 4 nanoseconds, there are another 10 data points which makes the total points 20.
-//! At 5 nanoseconds, there are no data points so the total number is still 20. Users can
-//! post-process the output make a smooth CDF plot out of it.
+//! It means there are not data points at 0/1/2 nanoseconds. At 3 nanoseconds, there are 10% data
+//! points. At 4 nanoseconds, there are another 10% data points which makes the total 20%. At 5
+//! nanoseconds, there are no data points so the percentile is still 20%. Users can post-process
+//! the output and make a smooth CDF plot out of it.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
@@ -691,12 +692,12 @@ fn bench_stat_final(
                 hdr.value_at_quantile(0.999),
             );
             if benchmark.cdf {
-                print!(" cdf_ns ");
+                print!(" cdf_ns percentile ");
                 let mut cdf = 0;
                 for ns in latency.hdr.iter_all() {
                     let val = ns.value_iterated_to();
                     cdf += ns.count_at_value();
-                    print!("{} {}", val, cdf);
+                    print!("{} {:.2}", val, cdf as f64 * 100.0 / total as f64);
                     if val == hdr.max() {
                         break;
                     }
