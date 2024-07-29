@@ -46,21 +46,20 @@
 //!
 //! When measuring throughput, an output may look like the following:
 //! ```txt
-//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
 //! ```
 //!
 //! The general format is:
 //!
 //! ```txt
-//! <n> phase <p> repeat <r> duration <d> elapsed <e> total <o> mops <t>
+//! phase <p> repeat <r> duration <d> elapsed <e> total <o> mops <t>
 //! ```
 //!
 //! Where:
 //!
-//! - `<n>`: report sequence number, also the line number of the output.
 //! - `<p>`: phase id.
 //! - `<r>`: repeat id in a phase, or string `finish .`, if the line is the aggregated report
 //! of a whole phase.
@@ -78,10 +77,10 @@
 //! measurements, but the `finish` line has extra output like the following:
 //!
 //! ```txt
-//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
 //! ```
 //!
 //! The extra output on the last line has a format of:
@@ -106,10 +105,10 @@
 //! latency metrics above. In that case, the output will be like the following:
 //!
 //! ```txt
-//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns ...
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns ...
 //! ```
 //! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
 //! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
@@ -141,7 +140,7 @@ use parking_lot::Mutex;
 use quanta::Instant;
 use serde::Deserialize;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
@@ -601,10 +600,6 @@ struct WorkerContext {
     /// output
     measurements: Vec<Arc<Measurement>>,
 
-    /// The sequence number of the output. This value is actually only used by one thread at a
-    /// time, but it is shared among all workers.
-    seq: Arc<AtomicUsize>,
-
     /// Barrier that syncs all workers
     barrier: Arc<Barrier>,
 
@@ -620,7 +615,6 @@ fn bench_stat_repeat(
     start: Instant,
     end: Instant,
     thread_info: (usize, usize),
-    seq: &Arc<AtomicUsize>,
     measurements: &Vec<Arc<Measurement>>,
 ) {
     assert!(thread_info.0 == 0);
@@ -646,16 +640,9 @@ fn bench_stat_repeat(
 
     if benchmark.report == ReportMode::Repeat || benchmark.report == ReportMode::All {
         println!(
-            "{} phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
-            seq.load(Ordering::Relaxed),
-            phase,
-            repeat,
-            duration,
-            elapsed,
-            total,
-            throughput,
+            "phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
+            phase, repeat, duration, elapsed, total, throughput,
         );
-        seq.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -666,7 +653,6 @@ fn bench_stat_final(
     start: Instant,
     end: Instant,
     thread_info: (usize, usize),
-    seq: &Arc<AtomicUsize>,
     measurements: &Vec<Arc<Measurement>>,
 ) {
     assert!(thread_info.0 == 0);
@@ -687,13 +673,8 @@ fn bench_stat_final(
 
     if benchmark.report == ReportMode::Finish || benchmark.report == ReportMode::All {
         print!(
-            "{} phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
-            seq.load(Ordering::Relaxed),
-            phase,
-            duration,
-            elapsed,
-            total,
-            throughput,
+            "phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
+            phase, duration, elapsed, total, throughput,
         );
         if benchmark.latency {
             print!(" ");
@@ -726,7 +707,6 @@ fn bench_stat_final(
         }
 
         println!();
-        seq.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -740,7 +720,6 @@ fn bench_worker_regular(
         since,
         phase,
         measurements,
-        seq,
         barrier,
         thread_info,
     } = context;
@@ -815,7 +794,6 @@ fn bench_worker_regular(
                 start,
                 end,
                 thread_info,
-                &seq,
                 &measurements,
             );
         }
@@ -835,7 +813,6 @@ fn bench_worker_regular(
             start,
             end,
             thread_info,
-            &seq,
             &measurements,
         );
     }
@@ -851,7 +828,6 @@ fn bench_worker_async(
         since,
         phase,
         measurements,
-        seq,
         barrier,
         thread_info,
     } = context;
@@ -948,7 +924,6 @@ fn bench_worker_async(
                 start,
                 end,
                 thread_info,
-                &seq,
                 &measurements,
             );
         }
@@ -984,7 +959,6 @@ fn bench_worker_async(
             start,
             end,
             thread_info,
-            &seq,
             &measurements,
         );
     }
@@ -995,7 +969,6 @@ fn bench_phase_regular(
     benchmark: Arc<Benchmark>,
     phase: usize,
     since: Arc<Instant>,
-    seq: Arc<AtomicUsize>,
     thread: &impl Thread,
 ) {
     let barrier = Arc::new(Barrier::new(benchmark.threads.try_into().unwrap()));
@@ -1013,7 +986,6 @@ fn bench_phase_regular(
             phase,
             measurements: measurements.clone(),
             barrier,
-            seq: seq.clone(),
             since: *since,
             thread_info,
         };
@@ -1037,7 +1009,6 @@ fn bench_phase_async(
     benchmark: Arc<Benchmark>,
     phase: usize,
     since: Arc<Instant>,
-    seq: Arc<AtomicUsize>,
     thread: &impl Thread,
 ) {
     let barrier = Arc::new(Barrier::new((benchmark.threads).try_into().unwrap()));
@@ -1055,7 +1026,6 @@ fn bench_phase_async(
             phase,
             measurements: measurements.clone(),
             barrier,
-            seq: seq.clone(),
             since: *since,
             thread_info,
         };
@@ -1083,16 +1053,8 @@ pub fn bench_regular(
 ) {
     debug!("Running regular bencher");
     let start = Arc::new(Instant::now());
-    let seq = Arc::new(AtomicUsize::new(0));
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_regular(
-            map.clone(),
-            p.clone(),
-            i,
-            start.clone(),
-            seq.clone(),
-            &thread,
-        );
+        bench_phase_regular(map.clone(), p.clone(), i, start.clone(), &thread);
     }
 }
 
@@ -1106,16 +1068,8 @@ pub fn bench_async(
 ) {
     debug!("Running async bencher");
     let start = Arc::new(Instant::now());
-    let seq = Arc::new(AtomicUsize::new(0));
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_async(
-            map.clone(),
-            p.clone(),
-            i,
-            start.clone(),
-            seq.clone(),
-            &thread,
-        );
+        bench_phase_async(map.clone(), p.clone(), i, start.clone(), &thread);
     }
 }
 
