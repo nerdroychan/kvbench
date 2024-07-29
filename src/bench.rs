@@ -64,7 +64,7 @@
 //! - `<r>`: repeat id in a phase, or string `finish .`, if the line is the aggregated report
 //! of a whole phase.
 //! - `<d>`: the duration of the repeat/phase, in seconds.
-//! - `<e>`: the total elapsed time when this line is printed since the starting of the program.
+//! - `<e>`: the total elapsed seconds since the starting of the program.
 //! - `<o>`: the total key-value operations executed by all worker threads in the repeat/phase.
 //! - `<t>`: followed by the throughput in million operations per second of the repeat/phase.
 //!
@@ -80,16 +80,16 @@
 //! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
 //! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
 //! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00
 //! ```
 //!
 //! The extra output on the last line has a format of:
 //!
 //! ```txt
-//! min_ns <i> max_ns <a> avg_ns <v> p50_ns <m> p95_ns <n> p99_ns <p> p999_ns <t>
+//! min_us <i> max_us <a> avg_us <v> p50_us <m> p95_us <n> p99_us <p> p999_us <t>
 //! ```
 //!
-//! Where (all units are nanoseconds):
+//! Where (all units are microseconds):
 //!
 //! - `<i>`: minimum latency
 //! - `<a>`: maximum latency
@@ -108,25 +108,26 @@
 //! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
 //! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
 //! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns percentile ...
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00 cdf_us percentile ...
 //! ```
 //! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
 //! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
-//! printed as a tuple of `<ns> <percentile>` where `<ns>` is the latency in nanoseconds and
-//! `<percentile>` is the percentage of the accumulated operations with latency up to `<ns>`,
-//! ranges from 0 to 100 (two digit precision). There can be arbitrary number of tuples. The output
-//! ends when the maximum recorded latency is reached.
+//! printed as a tuple of `<us> <percentile>` where `<us>` is the latency in microseconds and
+//! `<percentile>` is the percentile of the accumulated operations with latency higher than between
+//! `<ns> - 1` and `<ns>`, inclusively, ranging from 0 to 100 (two digit precision).
+//! There can be arbitrary number of tuples. The output ends when the maximum recorded latency is
+//! reached.
 //!
 //! An example of the CDF data will look like:
 //!
 //! ```txt
-//! cdf_ns percentile 0 0.00 1 0.00 2 0.00 3 10.00 4 20.00 5 20.00 ...
+//! cdf_us percentile 1 0.00 2 0.00 3 0.00 4 10.00 5 20.00 6 20.00 ...
 //! ```
 //!
-//! It means there are not data points at 0/1/2 nanoseconds. At 3 nanoseconds, there are 10% data
-//! points. At 4 nanoseconds, there are another 10% data points which makes the total 20%. At 5
-//! nanoseconds, there are no data points so the percentile is still 20%. Users can post-process
-//! the output and make a smooth CDF plot out of it.
+//! It means there are not data points at 1/2/3 microseconds. At 4 microseconds, there are 10% data
+//! points. At 5 microseconds, there are another 10% data points which makes the total percentile
+//! 20.00. At 6 microseconds, there are no data points so the percentile is still 20.00. Users can
+//! post-process the output and make a smooth CDF plot out of it.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
@@ -682,23 +683,25 @@ fn bench_stat_final(
             assert_eq!(total, latency.hdr.len());
             let hdr = &latency.hdr;
             print!(
-                "min_ns {} max_ns {} avg_ns {:.2} p50_ns {} p95_ns {} p99_ns {} p999_ns {}",
-                hdr.min(),
-                hdr.max(),
-                hdr.mean(),
-                hdr.value_at_quantile(0.50),
-                hdr.value_at_quantile(0.95),
-                hdr.value_at_quantile(0.99),
-                hdr.value_at_quantile(0.999),
+                "min_us {:.2} max_us {:.2} avg_us {:.2} \
+                 p50_us {:.2} p95_us {:.2} p99_us {:.2} p999_us {:.2}",
+                hdr.min() as f64 / 1000.0,
+                hdr.max() as f64 / 1000.0,
+                hdr.mean() / 1000.0,
+                hdr.value_at_quantile(0.50) as f64 / 1000.0,
+                hdr.value_at_quantile(0.95) as f64 / 1000.0,
+                hdr.value_at_quantile(0.99) as f64 / 1000.0,
+                hdr.value_at_quantile(0.999) as f64 / 1000.0,
             );
             if benchmark.cdf {
-                print!(" cdf_ns percentile ");
+                print!(" cdf_us percentile ");
                 let mut cdf = 0;
-                for ns in latency.hdr.iter_all() {
-                    let val = ns.value_iterated_to();
-                    cdf += ns.count_at_value();
-                    print!("{} {:.2}", val, cdf as f64 * 100.0 / total as f64);
-                    if val == hdr.max() {
+                for v in latency.hdr.iter_linear(1000) {
+                    let ns = v.value_iterated_to();
+                    let us = (ns + 1) / 1000;
+                    cdf += v.count_since_last_iteration();
+                    print!("{} {:.2}", us, cdf as f64 * 100.0 / total as f64);
+                    if ns >= hdr.max() {
                         break;
                     }
                     print!(" ");
