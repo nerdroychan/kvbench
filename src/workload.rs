@@ -115,7 +115,7 @@ impl KeyGenerator {
 ///
 /// This struct is used for interacting with workload configuration files and also create new
 /// [`Workload`] instances.
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkloadOpt {
     /// Percentage of `SET` operations.
     pub set_perc: u8,

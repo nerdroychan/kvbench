@@ -37,7 +37,12 @@
 //!
 //! ## Output Format
 //!
-//! **Throughput-only measurement (default case)**
+//! Currently, all outputs are in plain text format. This makes the output easy to process using
+//! shell scripts and tools including gnuplot. If there are new data added to the output, it
+//! will be appended at the end of existing entries (but before `cdf` if it exists, see below)
+//! to make sure outputs from old versions can still be processed without changes.
+//!
+//! ### Throughput-only Output (default case)
 //!
 //! When measuring throughput, an output may look like the following:
 //! ```txt
@@ -64,7 +69,7 @@
 //! - `<o>`: the total key-value operations executed by all worker threads in the repeat/phase.
 //! - `<t>`: followed by the throughput in million operations per second of the repeat/phase.
 //!
-//! **Throughput+Latency measurement (when `latency` is `true`)**
+//! ### Throughput + Latency Output (when `latency` is `true`)
 //!
 //! When latency measurement is enabled, the latency metrics shall be printed at the end of each
 //! benchmark. It is not shown after each repeat, because unlike throughput which is a singleton
@@ -76,23 +81,52 @@
 //! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
 //! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
 //! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
+//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100
 //! ```
 //!
 //! The extra output on the last line has a format of:
 //!
 //! ```txt
-//! min_ns <i> max_ns <a> p50_ns <m> p95_ns <n> p99_ns <p> p999_ns <t>
+//! min_ns <i> max_ns <a> avg_ns <v> p50_ns <m> p95_ns <n> p99_ns <p> p999_ns <t>
 //! ```
 //!
 //! Where (all units are nanoseconds):
 //!
 //! - `<i>`: minimum latency
 //! - `<a>`: maximum latency
+//! - `<v>`: mean latency
 //! - `<m>`: median latency (50% percentile)
 //! - `<n>`: P95 latency
 //! - `<p>`: P99 latency
 //! - `<t>`: P999 latency (99.9%)
+//!
+//! ### Throughput + Latency + Latency CDF Mode (when both `latency` and `cdf` are `true`)
+//!
+//! When `cdf` is enabled, the latency CDF data will be printed at the end of the same line as the
+//! latency metrics above. In that case, the output will be like the following:
+//!
+//! ```txt
+//! 0 phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! 1 phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! 2 phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! 3 phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_ns 1 max_ns 100 avg_ns 50 p50_ns 50 p95_ns 95 p99_ns 99 p999_ns 100 cdf_ns ...
+//! ```
+//! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
+//! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
+//! printed as a tuple of `<ns> <count>` where `<ns>` is the latency in nanoseconds and `<count>`
+//! is the accumulated number of operations up to `<ns>`. There can be arbitrary number of tuples.
+//! The output ends when the maximum recorded latency is reached.
+//!
+//! An example of the CDF data will look like:
+//!
+//! ```txt
+//! cdf_ns 0 0 1 0 2 0 3 10 4 10 5 20 ...
+//! ```
+//!
+//! It means there are not data points at 0/1/2 nanoseconds. At 3 nanoseconds, there are 10 data
+//! points. At 4 nanoseconds, there are another 10 data points which makes the total points 20.
+//! At 5 nanoseconds, there are no data points so the total number is still 20. Users can
+//! post-process the output make a smooth CDF plot out of it.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::thread::{JoinHandle, Thread};
@@ -114,7 +148,7 @@ use std::time::Duration;
 // {{{ benchmark
 
 /// Length determines when a benchmark should stop or how often the metrics should be collected.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Length {
     /// Each worker thread syncs after a timeout (e.g., 0.1s).
     Timeout(Duration),
@@ -195,6 +229,12 @@ pub struct BenchmarkOpt {
     /// Default: false.
     pub latency: Option<bool>,
 
+    /// Whether or not to print out latency CDF at the end of each benchmark. If this is set to
+    /// `true`, `latency` must also be set to `true`.
+    ///
+    /// Default: false.
+    pub cdf: Option<bool>,
+
     /// The definition of a workload.
     ///
     /// This section is embedded and flattened, so that you can directly use options in
@@ -207,6 +247,9 @@ impl BenchmarkOpt {
     /// Internal function called after all global options are applied and when all the options are
     /// set. This will test if the opt can be a valid benchmark. It does not check the workload's
     /// configuration, as it will be checked when a workload instance is created.
+    ///
+    /// Note: `timeout` and `ops` may not be set as of now, and they are not checked. They will be
+    /// converted to `Length` when creating a new benchmark object.
     fn sanity(&self) {
         // these must be present, so `unwrap` won't panic.
         assert!(
@@ -221,6 +264,12 @@ impl BenchmarkOpt {
             "hidden" | "repeat" | "finish" | "all" => {}
             _ => panic!("report mode should be one of: hidden, repeat, finish, all"),
         }
+        if let Some(true) = self.cdf {
+            assert!(
+                *self.latency.as_ref().unwrap(),
+                "when cdf is true, latency must also be true"
+            );
+        }
         assert!(
             *self.qd.as_ref().unwrap() > 0,
             "queue depth should be positive if given"
@@ -233,7 +282,7 @@ impl BenchmarkOpt {
 }
 
 /// The configuration of a benchmark, parsed from user's input.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Benchmark {
     threads: usize,
     repeat: usize,
@@ -242,6 +291,7 @@ pub struct Benchmark {
     len: Length,
     report: ReportMode,
     latency: bool,
+    cdf: bool,
     wopt: WorkloadOpt,
 }
 
@@ -258,7 +308,10 @@ impl Benchmark {
         let batch = opt.batch.unwrap();
         // handle length in the following, now 3 modes
         let len = if let Some(t) = opt.timeout {
-            assert!(opt.ops.is_none());
+            assert!(
+                opt.ops.is_none(),
+                "timeout and ops cannot be provided at the same time"
+            );
             Length::Timeout(Duration::from_secs_f32(t))
         } else if let Some(c) = opt.ops {
             Length::Count(c)
@@ -273,6 +326,7 @@ impl Benchmark {
             _ => panic!("Invalid report mode provided"),
         };
         let latency = opt.latency.unwrap();
+        let cdf = opt.cdf.unwrap();
         let wopt = opt.workload.clone();
         Self {
             threads,
@@ -282,6 +336,7 @@ impl Benchmark {
             len,
             report,
             latency,
+            cdf,
             wopt,
         }
     }
@@ -303,6 +358,7 @@ pub struct GlobalOpt {
     pub batch: Option<usize>,
     pub report: Option<String>,
     pub latency: Option<bool>,
+    pub cdf: Option<bool>,
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
     pub kmin: Option<usize>,
@@ -318,6 +374,7 @@ impl Default for GlobalOpt {
             batch: None,
             report: None,
             latency: None,
+            cdf: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -341,6 +398,10 @@ impl GlobalOpt {
             .latency
             .clone()
             .or_else(|| Some(self.latency.clone().unwrap_or(false)));
+        opt.cdf = opt
+            .cdf
+            .clone()
+            .or_else(|| Some(self.cdf.clone().unwrap_or(false)));
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -639,15 +700,31 @@ fn bench_stat_final(
             assert_eq!(total, latency.hdr.len());
             let hdr = &latency.hdr;
             print!(
-                "min_ns {} max_ns {} p50_ns {} p95_ns {} p99_ns {} p999_ns {}",
+                "min_ns {} max_ns {} avg_ns {:.2} p50_ns {} p95_ns {} p99_ns {} p999_ns {}",
                 hdr.min(),
                 hdr.max(),
+                hdr.mean(),
                 hdr.value_at_quantile(0.50),
                 hdr.value_at_quantile(0.95),
                 hdr.value_at_quantile(0.99),
                 hdr.value_at_quantile(0.999),
             );
+            if benchmark.cdf {
+                print!(" cdf_ns ");
+                let mut cdf = 0;
+                for ns in latency.hdr.iter_all() {
+                    let val = ns.value_iterated_to();
+                    cdf += ns.count_at_value();
+                    print!("{} {}", val, cdf);
+                    if val == hdr.max() {
+                        break;
+                    }
+                    print!(" ");
+                }
+                assert_eq!(cdf, total);
+            }
         }
+
         println!();
         seq.fetch_add(1, Ordering::Relaxed);
     }
@@ -1049,6 +1126,189 @@ pub fn bench_async(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn global_options_are_applied() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            threads = 8
+            repeat = 10
+            qd = 10
+            batch = 15
+            report = "finish"
+            latency = true
+            cdf = true
+            klen = 8
+            vlen = 16
+            kmin = 100
+            kmax = 1000
+
+            [[benchmark]]
+            timeout = 10.0
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, bg) = init(opt);
+        assert_eq!(bg.len(), 1);
+
+        let wopt = WorkloadOpt {
+            set_perc: 100,
+            get_perc: 0,
+            del_perc: 0,
+            dist: "incrementp".to_string(),
+            klen: Some(8),
+            vlen: Some(16),
+            kmin: Some(100),
+            kmax: Some(1000),
+            zipf_theta: None,
+            zipf_hotspot: None,
+        };
+
+        let benchmark = Benchmark {
+            threads: 8,
+            repeat: 10,
+            qd: 10,
+            batch: 15,
+            report: ReportMode::Finish,
+            latency: true,
+            cdf: true,
+            len: Length::Timeout(Duration::from_secs_f32(10.0)),
+            wopt,
+        };
+
+        assert_eq!(*bg[0], benchmark)
+    }
+
+    #[test]
+    #[should_panic(expected = "should be positive")]
+    fn invalid_threads() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            threads = 0
+            timeout = 1.0
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, _) = init(opt);
+    }
+
+    #[test]
+    #[should_panic(expected = "should be positive")]
+    fn invalid_repeat() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            repeat = 0
+            timeout = 1.0
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, _) = init(opt);
+    }
+
+    #[test]
+    #[should_panic(expected = "report mode should be one of")]
+    fn invalid_report() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            timeout = 1.0
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+            report = "alll"
+        "#;
+
+        let (_, _) = init(opt);
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot be provided at the same time")]
+    fn invalid_length() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            timeout = 1.0
+            ops = 1000
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, _) = init(opt);
+    }
+
+    #[test]
+    #[should_panic(expected = "latency must also be true")]
+    fn invalid_latency() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            timeout = 1.0
+            cdf = true
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, _) = init(opt);
+    }
 
     const EXAMPLE_BENCH: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
