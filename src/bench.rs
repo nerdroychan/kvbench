@@ -120,7 +120,7 @@
 //! An example of the CDF data will look like:
 //!
 //! ```txt
-//! cdf_ns percentile 0 0.0 1 0.0 2 0.0 3 10.0 4 20.0 5 20.0 ...
+//! cdf_ns percentile 0 0.00 1 0.00 2 0.00 3 10.00 4 20.00 5 20.00 ...
 //! ```
 //!
 //! It means there are not data points at 0/1/2 nanoseconds. At 3 nanoseconds, there are 10% data

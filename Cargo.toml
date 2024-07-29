@@ -26,7 +26,6 @@ flurry = { version = "0.5.1", optional = true }
 hashbrown = "0.14.5"
 hdrhistogram = "7.5.4"
 inventory = "0.3.15"
-jemallocator = "0.5.4"
 log = "0.4.22"
 mio = { version = "1.0.1", features = ["net", "os-poll"] }
 papaya = { version = "0.1.2", optional = true }

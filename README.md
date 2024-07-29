@@ -24,9 +24,7 @@ The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 The missing pieces that are currently under active development:
 
-- Latency CDF
 - Atomic Read-modify-write (RMW) support.
-- JSON formatted output option
 - More key-distributions (e.g., latest key, composite-zipfian).
 - Ordered key-value stores support (range query workloads).
 - Extra built-ins (e.g., YCSB workloads).

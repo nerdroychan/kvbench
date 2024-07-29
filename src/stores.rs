@@ -1,4 +1,4 @@
-//! The implementation of built-in key-value stores, and some helper functions.
+//! Adapters for built-in and external key-value stores.
 //!
 //! ## Configuration Format
 //!
