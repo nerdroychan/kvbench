@@ -1,6 +1,6 @@
 [package]
 name = "kvbench"
-version = "0.1.2-alpha"
+version = "0.1.2"
 authors = ["Chen Chen <mail@roychan.org>"]
 description = "A key-value store benchmark framework with customizable workloads"
 edition = "2021"
@@ -10,6 +10,10 @@ license = "GPL-3.0"
 keywords = ["benchmark", "key-value"]
 categories = ["concurrency", "development-tools::profiling", "development-tools::testing"]
 exclude = ["examples"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 ahash = "0.8.11"
