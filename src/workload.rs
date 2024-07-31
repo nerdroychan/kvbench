@@ -46,10 +46,9 @@ impl Mix {
 #[derive(Debug)]
 enum KeyDistribution {
     Increment,
-    Shuffle(Vec<usize>), // be careful about its size
+    Shuffle(Vec<usize>),
     Uniform(Uniform<usize>),
     Zipfian(ZipfDistribution, usize),
-    // File,
 }
 
 /// Key generator that takes care of synthetic keys based on a distribution. Currently it only
@@ -63,6 +62,11 @@ struct KeyGenerator {
     serial: usize,
     dist: KeyDistribution,
 }
+
+/// Since we use `usize` for the numeric keys generated, the maximum key space size is limited by
+/// the platform. If the target platform is 32-bit, all possible keys would have already filled the
+/// memory, unless it is supporting a large persistent store, which is unlikely the case.
+const KEY_BYTES: usize = std::mem::size_of::<usize>();
 
 impl KeyGenerator {
     fn new(len: usize, min: usize, max: usize, dist: KeyDistribution) -> Self {
@@ -103,23 +107,24 @@ impl KeyGenerator {
     }
 
     fn next(&mut self, rng: &mut impl Rng) -> Box<[u8]> {
-        let key = match self.dist {
+        let k = match self.dist {
             KeyDistribution::Increment => self.serial % self.keyspace,
             KeyDistribution::Shuffle(ref shuffle) => shuffle[self.serial % self.keyspace],
             KeyDistribution::Uniform(dist) => dist.sample(rng),
             KeyDistribution::Zipfian(dist, hotspot) => {
                 // zipf starts at 1
-                (dist.sample(rng) + hotspot - 1) % self.keyspace
+                (dist.sample(rng) - 1 + hotspot) % self.keyspace
             }
         } + self.min;
         self.serial += 1;
-        assert!(key < self.max);
+        assert!(k < self.max);
         // fill 0s in the key to construct a key with length self.len
-        let bytes = key.to_be_bytes();
+        let bytes = k.to_be_bytes();
         // key will hold the final key which is a Box<[u8]> and here we just do the allocation
         let mut key: Box<[u8]> = (0..self.len).map(|_| 0u8).collect();
-        let len = self.len.min(8);
-        key[0..len].copy_from_slice(&bytes[8 - len..8]);
+        let len = self.len.min(KEY_BYTES);
+        // copy from the big end to the beginning of the key slice
+        key[0..len].copy_from_slice(&bytes[(KEY_BYTES - len)..KEY_BYTES]);
         key
     }
 }
