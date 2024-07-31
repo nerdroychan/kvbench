@@ -611,8 +611,8 @@ mod tests {
     #[test]
     fn workload_keygen_parallel() {
         let mut opt = WorkloadOpt {
-            set_perc: 100,
-            get_perc: 0,
+            set_perc: 50,
+            get_perc: 50,
             del_perc: 0,
             klen: Some(16),
             vlen: Some(100),
@@ -634,6 +634,43 @@ mod tests {
             let workload = Workload::new(&opt, Some((2, 3)));
             assert_eq!(workload.kgen.min, 18230);
             assert_eq!(workload.kgen.max, 22347); // 2 more keys
+        };
+        // incrementp
+        test(&opt);
+        // shufflep
+        opt.dist = "shufflep".to_string();
+        test(&opt);
+    }
+
+    #[test]
+    fn workload_keygen_parallel_fill() {
+        let mut opt = WorkloadOpt {
+            set_perc: 100,
+            get_perc: 0,
+            del_perc: 0,
+            klen: Some(16),
+            vlen: Some(100),
+            dist: "incrementp".to_string(),
+            kmin: Some(10000),
+            kmax: Some(22347),
+            zipf_theta: None,
+            zipf_hotspot: None,
+        };
+        let test = |opt: &WorkloadOpt| {
+            let mut rng = rand::thread_rng();
+            let mut keys = HashSet::<Box<[u8]>>::new();
+            let mut workloads: Vec<Workload> =
+                (0..5).map(|t| Workload::new(&opt, Some((t, 5)))).collect();
+            for w in workloads.iter_mut() {
+                while !w.is_exhausted() {
+                    let op = w.next(&mut rng);
+                    let Operation::Set { key, .. } = op else {
+                        panic!()
+                    };
+                    assert!(keys.insert(key));
+                }
+            }
+            assert_eq!(keys.len(), 12347);
         };
         // incrementp
         test(&opt);
