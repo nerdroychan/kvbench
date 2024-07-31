@@ -133,6 +133,8 @@ pub mod null;
 #[cfg(feature = "papaya")]
 pub mod papaya;
 pub mod remote;
+#[cfg(feature = "rocksdb")]
+pub mod rocksdb;
 #[cfg(feature = "scc")]
 pub mod scc;
 
