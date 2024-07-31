@@ -1,0 +1,23 @@
+[global]
+threads = 1
+repeat = 1
+klen = 8
+vlen = 16
+kmin = 0
+kmax = 1000000
+
+[[benchmark]]
+set_perc = 100
+get_perc = 0
+del_perc = 0
+repeat = 1
+dist = "shufflep"
+report = "hidden"
+
+[[benchmark]]
+timeout = 3
+set_perc = 5
+get_perc = 95
+del_perc = 0
+dist = "latest"
+report = "finish"
