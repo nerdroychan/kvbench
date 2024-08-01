@@ -17,7 +17,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct RocksDBOpt {
-    path: String,
+    pub path: String,
 }
 
 #[derive(Clone)]

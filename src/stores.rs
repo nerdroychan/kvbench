@@ -231,4 +231,15 @@ mod tests {
         let mut map = scc::SccHashMap::new();
         map_test(&mut map);
     }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn rocksdb() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = rocksdb::RocksDBOpt {
+            path: tmp_dir.path().to_str().unwrap().to_string(),
+        };
+        let mut map = rocksdb::RocksDB::new(&opt);
+        map_test(&mut map);
+    }
 }

@@ -24,8 +24,6 @@ jobs:
     - uses: baptiste0928/cargo-install@v3
       with:
         crate: cargo-hack
-    - name: check
-      run: cargo hack check --feature-powerset --no-dev-deps
     - name: build
       run: |
         cargo build --verbose --release
@@ -33,4 +31,5 @@ jobs:
     - name: test
       run: |
         cargo test --release
+        cargo hack test --each-feature --release
         cargo test --release --all-features

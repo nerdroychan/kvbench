@@ -42,6 +42,9 @@ serde = { version = "1.0.204", features = ["derive"] }
 toml = "0.8.19"
 zipf = "7.0.1"
 
+[dev-dependencies]
+tempfile = "3.10.1"
+
 [features]
 chashmap = ["dep:chashmap"]
 contrie = ["dep:contrie"]

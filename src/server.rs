@@ -824,6 +824,29 @@ mod tests {
         simple(map);
     }
 
+    #[test]
+    fn simple_mutex_btreemap() {
+        let map = BenchKVMap::Regular(Box::new(btreemap::MutexBTreeMap::new()));
+        simple(map);
+    }
+
+    #[test]
+    fn simple_rwlock_btreemap() {
+        let map = BenchKVMap::Regular(Box::new(btreemap::RwLockBTreeMap::new()));
+        simple(map);
+    }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn simple_rocksdb() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = rocksdb::RocksDBOpt {
+            path: tmp_dir.path().to_str().unwrap().to_string(),
+        };
+        let map = BenchKVMap::Regular(Box::new(rocksdb::RocksDB::new(&opt)));
+        simple(map);
+    }
+
     fn batch(map: BenchKVMap) {
         const NR_CLIENTS: usize = 8;
         const NR_BATCHES: usize = 1000;
@@ -975,6 +998,17 @@ mod tests {
     #[test]
     fn batch_rwlock_btreemap() {
         let map = BenchKVMap::Regular(Box::new(btreemap::RwLockBTreeMap::new()));
+        batch(map);
+    }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn batch_rocksdb() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = rocksdb::RocksDBOpt {
+            path: tmp_dir.path().to_str().unwrap().to_string(),
+        };
+        let map = BenchKVMap::Regular(Box::new(rocksdb::RocksDB::new(&opt)));
         batch(map);
     }
 }

@@ -1393,6 +1393,21 @@ mod tests {
         ));
         example(OPT);
     }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn example_rocksdb() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = format!(
+            r#"
+            [map]
+            name = "rocksdb"
+            path = "{}"
+            "#,
+            tmp_dir.path().to_str().unwrap().to_string()
+        );
+        example(&opt);
+    }
 }
 
 // }}} tests
