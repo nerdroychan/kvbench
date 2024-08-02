@@ -21,11 +21,26 @@
 //!
 //! This store is [`KVMap`].
 
-use crate::stores::*;
+use crate::stores::{BenchKVMap, Registry};
+use crate::*;
 use ::hashbrown::HashMap;
+use ahash::AHasher;
 use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;
+use std::hash::Hasher;
 use std::sync::Arc;
+
+/// Calculate the [`u64`] hash value of a given key using [`AHasher`].
+pub fn hash(key: &[u8]) -> u64 {
+    let mut hasher = AHasher::default();
+    hasher.write(key);
+    u64::from(hasher.finish())
+}
+
+pub fn shard(key: &[u8], nr_shards: usize) -> usize {
+    let hash = hash(key);
+    usize::try_from(hash).unwrap() % nr_shards
+}
 
 /// A wrapper around raw [`HashMap`] with variable-sized keys and values.
 ///
@@ -68,12 +83,12 @@ impl KVMap for MutexHashMap {
 
 impl KVMapHandle for MutexHashMap {
     fn set(&mut self, key: &[u8], value: &[u8]) {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         self.shards[sid].lock().insert(key.into(), value.into());
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         match self.shards[sid].lock().get(key) {
             Some(v) => Some(v.clone()),
             None => None,
@@ -81,7 +96,7 @@ impl KVMapHandle for MutexHashMap {
     }
 
     fn delete(&mut self, key: &[u8]) {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         self.shards[sid].lock().remove(key);
     }
 }
@@ -130,12 +145,12 @@ impl KVMap for RwLockHashMap {
 
 impl KVMapHandle for RwLockHashMap {
     fn set(&mut self, key: &[u8], value: &[u8]) {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         self.shards[sid].write().insert(key.into(), value.into());
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         match self.shards[sid].read().get(key) {
             Some(v) => Some(v.clone()),
             None => None,
@@ -143,7 +158,7 @@ impl KVMapHandle for RwLockHashMap {
     }
 
     fn delete(&mut self, key: &[u8]) {
-        let sid = find_shard(key, self.nr_shards);
+        let sid = shard(key, self.nr_shards);
         self.shards[sid].write().remove(key);
     }
 }

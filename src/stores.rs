@@ -38,24 +38,9 @@
 
 use crate::bench::Benchmark;
 use crate::*;
-use ahash::AHasher;
 use hashbrown::HashMap;
 use log::debug;
-use std::hash::Hasher;
 use toml::Table;
-
-pub fn hash(key: &[u8]) -> u64 {
-    let mut hasher = AHasher::default();
-    hasher.write(key);
-    u64::from(hasher.finish())
-}
-
-pub fn find_shard(key: &[u8], nr_shards: usize) -> usize {
-    let mut hasher = AHasher::default();
-    hasher.write(key);
-    let hash = u64::from(hasher.finish());
-    usize::try_from(hash).unwrap() % nr_shards
-}
 
 /// A unified enum for a created key-value store that is ready to run.
 pub enum BenchKVMap {

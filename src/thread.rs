@@ -4,8 +4,8 @@
 //!
 //! A key-value store is generally passive. However, some store may act like a server with
 //! active threads. In that case, one may employ its own implementation of spawn-join. If that is
-//! the case, their join handle (like `[std::thread::JoinHandle`]) should implement the
-//! [`JoinHandle`] trait and the spawn struct needs to implement `[Spawn]`.
+//! the case, their join handle (like [`std::thread::JoinHandle`]) should implement the
+//! [`JoinHandle`] trait and the spawn struct needs to implement [`Thread`].
 //!
 //! Note that for simplicity, the function spawn is generic over should not have a return value. So
 //! it is with the [`JoinHandle`]. Because the purpose is not general spawn-join but solely for
