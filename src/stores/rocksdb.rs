@@ -12,7 +12,7 @@
 
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
-use rocksdb::DB;
+use rocksdb::{Direction, IteratorMode, DB};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -58,6 +58,22 @@ impl KVMapHandle for RocksDB {
 
     fn delete(&mut self, key: &[u8]) {
         assert!(self.db.delete(key).is_ok());
+    }
+
+    fn scan(&mut self, key: &[u8], n: usize) -> Vec<Box<[u8]>> {
+        let mut kv = Vec::with_capacity(n);
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(key, Direction::Forward));
+        let mut i = 0;
+        for item in iter {
+            if i == n {
+                break;
+            }
+            kv.push(item.unwrap().1);
+            i += 1;
+        }
+        kv
     }
 }
 

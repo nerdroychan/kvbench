@@ -46,6 +46,10 @@ impl KVMapHandle for Flurry {
     fn delete(&mut self, key: &[u8]) {
         self.0.pin().remove(key);
     }
+
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+        unimplemented!("Range query is not supported");
+    }
 }
 
 inventory::submit! {

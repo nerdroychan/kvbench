@@ -16,6 +16,7 @@ enum OperationType {
     Set,
     Get,
     Delete,
+    Scan,
 }
 
 /// Mix defines the percentages of operations, it consists of multiple supported operations
@@ -27,8 +28,8 @@ struct Mix {
 }
 
 impl Mix {
-    fn new(set: u8, get: u8, delete: u8) -> Self {
-        let dist = WeightedIndex::new(&[set, get, delete]).unwrap();
+    fn new(set: u8, get: u8, delete: u8, scan: u8) -> Self {
+        let dist = WeightedIndex::new(&[set, get, delete, scan]).unwrap();
         Self { dist }
     }
 
@@ -37,6 +38,7 @@ impl Mix {
             OperationType::Set,
             OperationType::Get,
             OperationType::Delete,
+            OperationType::Scan,
         ];
         ops[self.dist.sample(rng)].clone()
     }
@@ -149,7 +151,9 @@ impl KeyGenerator {
 /// A set of workload parameters that can be deserialized from a TOML string.
 ///
 /// This struct is used for interacting with workload configuration files and also create new
-/// [`Workload`] instances.
+/// [`Workload`] instances. Some options are wrapped in an `Option` type to ease writing
+/// configuration files. If users would like to create a [`Workload`] instance directly using these
+/// options, all fields must be present.
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkloadOpt {
     /// Percentage of `SET` operations.
@@ -160,6 +164,12 @@ pub struct WorkloadOpt {
 
     /// Percentage of `DELETE` operations.
     pub del_perc: u8,
+
+    /// Percentage of `SCAN` operations.
+    pub scan_perc: u8,
+
+    /// The number of iterations per `SCAN` (only used when `scan_perc` is non-zero, default 10).
+    pub scan: Option<usize>,
 
     /// Key length in bytes.
     pub klen: Option<usize>,
@@ -200,15 +210,16 @@ pub struct WorkloadOpt {
 /// The minimal unit of workload context with its access pattern (mix and key generator).
 ///
 /// The values generated internally are fixed-sized only for now, similar to the keys. To
-/// pressurize the
-/// memory allocator, it might be a good idea to randomly adding a byte or two at each generated
-/// values.
+/// pressurize the memory allocator, it might be a good idea to randomly adding a byte or two at
+/// each generated values.
 #[derive(Debug)]
 pub struct Workload {
     /// Percentage of different operations
     mix: Mix,
     /// Key generator based on distribution
     kgen: KeyGenerator,
+    /// Scan length
+    scan: usize,
     /// Value length for operations that need a value
     vlen: usize,
     /// How many operations have been access so far
@@ -219,14 +230,16 @@ impl Workload {
     pub fn new(opt: &WorkloadOpt, thread_info: Option<(usize, usize)>) -> Self {
         // input sanity checks
         assert_eq!(
-            opt.set_perc + opt.get_perc + opt.del_perc,
+            opt.set_perc + opt.get_perc + opt.del_perc + opt.scan_perc,
             100,
             "sum of ops in a mix should be 100"
         );
+        let scan = opt.scan.expect("scan should be specified");
         let klen = opt.klen.expect("klen should be specified");
         let vlen = opt.vlen.expect("vlen should be specified");
         let kmin = opt.kmin.expect("kmin should be specified");
         let kmax = opt.kmax.expect("kmax should be specified");
+        assert!(scan > 0, "scan size should be positive");
         assert!(klen > 0, "klen should be positive");
         assert!(kmax > kmin, "kmax should be greater than kmin");
 
@@ -243,7 +256,7 @@ impl Workload {
             (kminp, kmaxp)
         };
 
-        let mix = Mix::new(opt.set_perc, opt.get_perc, opt.del_perc);
+        let mix = Mix::new(opt.set_perc, opt.get_perc, opt.del_perc, opt.scan_perc);
         let kgen = match opt.dist.as_str() {
             "increment" => KeyGenerator::new_increment(klen, kmin, kmax),
             "incrementp" => {
@@ -273,6 +286,7 @@ impl Workload {
         Self {
             mix,
             kgen,
+            scan,
             vlen,
             count: 0,
         }
@@ -302,6 +316,7 @@ impl Workload {
             }
             OperationType::Get => Operation::Get { key },
             OperationType::Delete => Operation::Delete { key },
+            OperationType::Scan => Operation::Scan { key, n: self.scan },
         }
     }
 
@@ -323,24 +338,28 @@ mod tests {
     #[test]
     fn mix_one_type_only() {
         let mut rng = rand::thread_rng();
-        let mix = Mix::new(100, 0, 0);
+        let mix = Mix::new(100, 0, 0, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Set));
         }
-        let mix = Mix::new(0, 100, 0);
+        let mix = Mix::new(0, 100, 0, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Get));
         }
-        let mix = Mix::new(0, 0, 100);
+        let mix = Mix::new(0, 0, 100, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Delete));
+        }
+        let mix = Mix::new(0, 0, 0, 100);
+        for _ in 0..100 {
+            assert!(matches!(mix.next(&mut rng), OperationType::Scan));
         }
     }
 
     #[test]
     fn mix_small_write() {
         let mut rng = rand::thread_rng();
-        let mix = Mix::new(5, 95, 0);
+        let mix = Mix::new(5, 95, 0, 0);
         let mut set = 0;
         #[allow(unused)]
         let mut get = 0;
@@ -349,6 +368,7 @@ mod tests {
                 OperationType::Set => set += 1,
                 OperationType::Get => get += 1,
                 OperationType::Delete => unreachable!(),
+                OperationType::Scan => unreachable!(),
             };
         }
         assert!(set < 65000 && set > 35000);
@@ -494,7 +514,9 @@ mod tests {
     fn workload_toml_correct() {
         let s = r#"set_perc = 70
                    get_perc = 20
-                   del_perc = 10
+                   del_perc = 5
+                   scan_perc = 5
+                   scan = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -509,7 +531,9 @@ mod tests {
 
         let s = r#"set_perc = 70
                    get_perc = 20
-                   del_perc = 10
+                   del_perc = 5
+                   scan_perc = 5
+                   scan = 10
                    klen = 40
                    vlen = 60
                    dist = "zipfian"
@@ -526,7 +550,9 @@ mod tests {
 
         let s = r#"set_perc = 60
                    get_perc = 25
-                   del_perc = 15
+                   del_perc = 10
+                   scan_perc = 5
+                   scan = 10
                    klen = 14
                    vlen = 16
                    dist = "shuffle"
@@ -546,7 +572,25 @@ mod tests {
         let s = r#"set_perc = 60
                    get_perc = 40
                    del_perc = 0
+                   scan_perc = 0
+                   scan = 10
                    klen = 0
+                   vlen = 6
+                   dist = "uniform"
+                   kmin = 0
+                   kmax = 12345"#;
+        let _ = Workload::new_from_toml_str(s, None);
+    }
+
+    #[test]
+    #[should_panic(expected = "should be positive")]
+    fn workload_toml_invalid_wrong_scan() {
+        let s = r#"set_perc = 60
+                   get_perc = 40
+                   del_perc = 0
+                   scan_perc = 0
+                   scan = 0
+                   klen = 2
                    vlen = 6
                    dist = "uniform"
                    kmin = 0
@@ -560,6 +604,8 @@ mod tests {
         let s = r#"set_perc = 60
                    get_perc = 40
                    del_perc = 0
+                   scan_perc = 0
+                   scan = 10
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
@@ -572,6 +618,8 @@ mod tests {
         let s = r#"set_perc = 60
                    get_perc = 40
                    del_perc = 0
+                   scan_perc = 0
+                   scan = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -586,6 +634,8 @@ mod tests {
         let s = r#"set_perc = 70
                    get_perc = 40
                    del_perc = 0
+                   scan_perc = 0
+                   scan = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -600,6 +650,8 @@ mod tests {
         let s = r#"set_perc = 70
                    get_perc = 30
                    del_perc = 0
+                   scan_perc = 0
+                   scan = 10
                    klen = 4
                    vlen = 6
                    dist = "uniorm"
@@ -614,6 +666,8 @@ mod tests {
             set_perc: 50,
             get_perc: 50,
             del_perc: 0,
+            scan_perc: 0,
+            scan: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "incrementp".to_string(),
@@ -648,6 +702,8 @@ mod tests {
             set_perc: 100,
             get_perc: 0,
             del_perc: 0,
+            scan_perc: 0,
+            scan: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "incrementp".to_string(),
@@ -685,6 +741,8 @@ mod tests {
             set_perc: 5,
             get_perc: 95,
             del_perc: 0,
+            scan_perc: 0,
+            scan: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "latest".to_string(),
@@ -730,6 +788,8 @@ mod tests {
             set_perc: 50,
             get_perc: 50,
             del_perc: 0,
+            scan_perc: 0,
+            scan: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "uniform".to_string(),
@@ -758,7 +818,7 @@ mod tests {
                     dist.entry(key).and_modify(|c| *c += 1).or_insert(0);
                     get += 1;
                 }
-                Operation::Delete { .. } => {
+                Operation::Delete { .. } | Operation::Scan { .. } => {
                     unreachable!();
                 }
             }

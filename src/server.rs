@@ -112,6 +112,11 @@ fn serve_requests_regular(
                 handle.delete(key);
                 assert!(write_response(&mut *writer, id, None).is_ok());
             }
+            Operation::Scan { ref key, n } => {
+                for v in handle.scan(key, *n) {
+                    assert!(write_response(&mut *writer, id, Some(&v[..])).is_ok());
+                }
+            }
         }
     }
 }

@@ -88,7 +88,10 @@ pub trait KVMapHandle {
     /// Removing a key if it exists.
     fn delete(&mut self, key: &[u8]);
 
-    // fn read_modify_write(&mut self, key: &[u8]);
+    /// Querying a range starting from the first key greater than or equal to the given key.
+    ///
+    /// Note: For simplicity, it returns only the values.
+    fn scan(&mut self, key: &[u8], n: usize) -> Vec<Box<[u8]>>;
 }
 
 /// A single operation that is applied to the key-value store.
@@ -104,6 +107,9 @@ pub enum Operation {
 
     /// Removing a key if it exists.
     Delete { key: Box<[u8]> },
+
+    /// Querying a range starting from the first key greater than or equal to the given key.
+    Scan { key: Box<[u8]>, n: usize },
 }
 
 /// A request sent by a client to a server.

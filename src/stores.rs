@@ -143,6 +143,70 @@ mod tests {
         assert_eq!(handle.get(b"foo"), None);
     }
 
+    fn map_test_scan(map: &impl KVMap) {
+        let mut handle = map.handle();
+        for i in 10000..20000usize {
+            let bytes = i.clone().to_be_bytes();
+            handle.set(&bytes, &bytes);
+        }
+
+        // query 10000 next 10000
+        let v = handle.scan(&10000_usize.to_be_bytes(), 10000);
+        assert_eq!(v.len(), 10000);
+        for i in 10000..20000usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 10000], bytes);
+        }
+
+        // query 10000 next 20000, should have 10000
+        let v = handle.scan(&10000_usize.to_be_bytes(), 20000);
+        assert_eq!(v.len(), 10000);
+        for i in 10000..20000usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 10000], bytes);
+        }
+
+        // query 10000 next 5, should have 5
+        let v = handle.scan(&10000_usize.to_be_bytes(), 5);
+        assert_eq!(v.len(), 5);
+        for i in 10000..10005usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 10000], bytes);
+        }
+
+        // query 13333 next 444, should have 444
+        let v = handle.scan(&13333_usize.to_be_bytes(), 444);
+        assert_eq!(v.len(), 444);
+        for i in 13333..13777usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 13333], bytes);
+        }
+
+        // query 13333 next 0, should have 0
+        let v = handle.scan(&13333_usize.to_be_bytes(), 0);
+        assert_eq!(v.len(), 0);
+
+        // query 20000 next 10000, should have 0
+        let v = handle.scan(&20000_usize.to_be_bytes(), 10000);
+        assert_eq!(v.len(), 0);
+
+        // query 0 next 5000, should have 5000
+        let v = handle.scan(&0_usize.to_be_bytes(), 5000);
+        assert_eq!(v.len(), 5000);
+        for i in 10000..15000usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 10000], bytes);
+        }
+
+        // query 8000 next 5000, should have 5000
+        let v = handle.scan(&8000_usize.to_be_bytes(), 5000);
+        assert_eq!(v.len(), 5000);
+        for i in 10000..15000usize {
+            let bytes = i.clone().to_be_bytes();
+            assert_eq!(*v[i - 10000], bytes);
+        }
+    }
+
     #[test]
     fn mutex_btreemap() {
         let mut map = btreemap::MutexBTreeMap::new();
@@ -226,5 +290,16 @@ mod tests {
         };
         let mut map = rocksdb::RocksDB::new(&opt);
         map_test(&mut map);
+    }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn rocksdb_scan() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = rocksdb::RocksDBOpt {
+            path: tmp_dir.path().to_str().unwrap().to_string(),
+        };
+        let mut map = rocksdb::RocksDB::new(&opt);
+        map_test_scan(&mut map);
     }
 }

@@ -60,6 +60,11 @@ impl KVMapHandle for MutexBTreeMap {
     fn delete(&mut self, key: &[u8]) {
         self.0.lock().remove(key);
     }
+
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+        // technically iteration is supported but querying a specific range is not a stable feature
+        unimplemented!("Range query is not supported");
+    }
 }
 
 inventory::submit! {
@@ -101,6 +106,11 @@ impl KVMapHandle for RwLockBTreeMap {
 
     fn delete(&mut self, key: &[u8]) {
         self.0.write().remove(key);
+    }
+
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+        // technically iteration is supported but querying a specific range is not a stable feature
+        unimplemented!("Range query is not supported");
     }
 }
 

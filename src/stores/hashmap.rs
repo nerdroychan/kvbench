@@ -99,6 +99,10 @@ impl KVMapHandle for MutexHashMap {
         let sid = shard(key, self.nr_shards);
         self.shards[sid].lock().remove(key);
     }
+
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+        unimplemented!("Range query is not supported");
+    }
 }
 
 inventory::submit! {
@@ -160,6 +164,10 @@ impl KVMapHandle for RwLockHashMap {
     fn delete(&mut self, key: &[u8]) {
         let sid = shard(key, self.nr_shards);
         self.shards[sid].write().remove(key);
+    }
+
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+        unimplemented!("Range query is not supported");
     }
 }
 

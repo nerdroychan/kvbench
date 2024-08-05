@@ -353,6 +353,7 @@ impl Benchmark {
 /// is missing. For the usage of each option, please refer to [`BenchmarkOpt`].
 #[derive(Deserialize, Clone, Debug)]
 pub struct GlobalOpt {
+    // benchmark
     pub threads: Option<usize>,
     pub repeat: Option<usize>,
     pub qd: Option<usize>,
@@ -360,6 +361,8 @@ pub struct GlobalOpt {
     pub report: Option<String>,
     pub latency: Option<bool>,
     pub cdf: Option<bool>,
+    // workload
+    pub scan: Option<usize>,
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
     pub kmin: Option<usize>,
@@ -376,6 +379,7 @@ impl Default for GlobalOpt {
             report: None,
             latency: None,
             cdf: None,
+            scan: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -403,6 +407,12 @@ impl GlobalOpt {
             .cdf
             .clone()
             .or_else(|| Some(self.cdf.clone().unwrap_or(false)));
+        // the workload options (fall back to defaults)
+        opt.workload.scan = opt
+            .workload
+            .scan
+            .clone()
+            .or_else(|| Some(self.scan.clone().unwrap_or(10)));
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -765,6 +775,9 @@ fn bench_worker_regular(
                 Operation::Delete { key } => {
                     handle.delete(&key[..]);
                 }
+                Operation::Scan { key, n } => {
+                    let _ = handle.scan(&key[..], n);
+                }
             }
             let op_end = latency_tick();
             if let Some(ref mut l) = latency {
@@ -1099,6 +1112,7 @@ mod tests {
             report = "finish"
             latency = true
             cdf = true
+            scan = 500
             klen = 8
             vlen = 16
             kmin = 100
@@ -1106,9 +1120,10 @@ mod tests {
 
             [[benchmark]]
             timeout = 10.0
-            set_perc = 100
-            get_perc = 0
-            del_perc = 0
+            set_perc = 50
+            get_perc = 30
+            del_perc = 10
+            scan_perc = 10
             dist = "incrementp"
         "#;
 
@@ -1116,10 +1131,12 @@ mod tests {
         assert_eq!(bg.len(), 1);
 
         let wopt = WorkloadOpt {
-            set_perc: 100,
-            get_perc: 0,
-            del_perc: 0,
+            set_perc: 50,
+            get_perc: 30,
+            del_perc: 10,
+            scan_perc: 10,
             dist: "incrementp".to_string(),
+            scan: Some(500),
             klen: Some(8),
             vlen: Some(16),
             kmin: Some(100),
@@ -1137,6 +1154,57 @@ mod tests {
             latency: true,
             cdf: true,
             len: Length::Timeout(Duration::from_secs_f32(10.0)),
+            wopt,
+        };
+
+        assert_eq!(*bg[0], benchmark)
+    }
+
+    #[test]
+    fn global_options_defaults_are_applied() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [[benchmark]]
+            set_perc = 50
+            get_perc = 30
+            del_perc = 10
+            scan_perc = 10
+            klen = 8
+            vlen = 16
+            kmin = 1
+            kmax = 1000
+            dist = "shufflep"
+        "#;
+
+        let (_, bg) = init(opt);
+        assert_eq!(bg.len(), 1);
+
+        let wopt = WorkloadOpt {
+            set_perc: 50,
+            get_perc: 30,
+            del_perc: 10,
+            scan_perc: 10,
+            dist: "shufflep".to_string(),
+            scan: Some(10),
+            klen: Some(8),
+            vlen: Some(16),
+            kmin: Some(1),
+            kmax: Some(1000),
+            zipf_theta: None,
+            zipf_hotspot: None,
+        };
+
+        let benchmark = Benchmark {
+            threads: 1,
+            repeat: 1,
+            qd: 1,
+            batch: 1,
+            report: ReportMode::All,
+            latency: false,
+            cdf: false,
+            len: Length::Exhaust,
             wopt,
         };
 
@@ -1162,6 +1230,7 @@ mod tests {
             set_perc = 100
             get_perc = 0
             del_perc = 0
+            scan_perc = 0
             dist = "incrementp"
         "#;
 
@@ -1187,6 +1256,7 @@ mod tests {
             set_perc = 100
             get_perc = 0
             del_perc = 0
+            scan_perc = 0
             dist = "incrementp"
         "#;
 
@@ -1211,6 +1281,7 @@ mod tests {
             set_perc = 100
             get_perc = 0
             del_perc = 0
+            scan_perc = 0
             dist = "incrementp"
             report = "alll"
         "#;
@@ -1237,6 +1308,7 @@ mod tests {
             set_perc = 100
             get_perc = 0
             del_perc = 0
+            scan_perc = 0
             dist = "incrementp"
         "#;
 
@@ -1262,6 +1334,7 @@ mod tests {
             set_perc = 100
             get_perc = 0
             del_perc = 0
+            scan_perc = 0
             dist = "incrementp"
         "#;
 
@@ -1273,9 +1346,21 @@ mod tests {
         "/presets/benchmarks/example.toml"
     ));
 
+    const EXAMPLE_SCAN_BENCH: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/presets/benchmarks/example_scan.toml"
+    ));
+
     fn example(map_opt: &str) {
         let _ = env_logger::try_init();
         let opt = map_opt.to_string() + "\n" + EXAMPLE_BENCH;
+        let (map, phases) = init(&opt);
+        map.bench(&phases);
+    }
+
+    fn example_scan(map_opt: &str) {
+        let _ = env_logger::try_init();
+        let opt = map_opt.to_string() + "\n" + EXAMPLE_SCAN_BENCH;
         let (map, phases) = init(&opt);
         map.bench(&phases);
     }
@@ -1290,12 +1375,30 @@ mod tests {
     }
 
     #[test]
+    fn example_scan_null() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/null.toml"
+        ));
+        example_scan(OPT);
+    }
+
+    #[test]
     fn example_null_async() {
         const OPT: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null_async.toml"
         ));
         example(OPT);
+    }
+
+    #[test]
+    fn example_scan_null_async() {
+        const OPT: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/stores/null_async.toml"
+        ));
+        example_scan(OPT);
     }
 
     #[test]
@@ -1407,6 +1510,21 @@ mod tests {
             tmp_dir.path().to_str().unwrap().to_string()
         );
         example(&opt);
+    }
+
+    #[test]
+    #[cfg(feature = "rocksdb")]
+    fn example_scan_rocksdb() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let opt = format!(
+            r#"
+            [map]
+            name = "rocksdb"
+            path = "{}"
+            "#,
+            tmp_dir.path().to_str().unwrap().to_string()
+        );
+        example_scan(&opt);
     }
 }
 

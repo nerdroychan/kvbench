@@ -3,6 +3,7 @@ threads = 8
 repeat = 5
 qd = 100
 batch = 10
+scan = 10
 klen = 8
 vlen = 16
 kmin = 0
@@ -19,15 +20,15 @@ dist = "incrementp"
 [[benchmark]]
 timeout = 0.2
 set_perc = 50
-get_perc = 50
+get_perc = 25
 del_perc = 0
-scan_perc = 0
+scan_perc = 25
 dist = "zipfian"
 
 [[benchmark]]
 timeout = 0.2
 set_perc = 50
-get_perc = 50
+get_perc = 25
 del_perc = 0
-scan_perc = 0
+scan_perc = 25
 dist = "uniform"
