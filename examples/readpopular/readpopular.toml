@@ -9,7 +9,6 @@ kmax = 1000000
 [[benchmark]]
 set_perc = 100
 get_perc = 0
-del_perc = 0
 repeat = 1
 dist = "incrementp"
 report = "hidden"
@@ -18,7 +17,6 @@ report = "hidden"
 timeout = 1
 set_perc = 0
 get_perc = 100
-del_perc = 0
 dist = "zipfian"
 zipf_theta = 1.0
 report = "finish"

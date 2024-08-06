@@ -10,7 +10,6 @@ report = "repeat"
 [[benchmark]]
 set_perc = 100
 get_perc = 0
-del_perc = 0
 repeat = 1
 dist = "incrementp"
 report = "hidden"
@@ -19,7 +18,6 @@ report = "hidden"
 [[benchmark]]
 set_perc = 50
 get_perc = 50
-del_perc = 0
 timeout = 1.0
 dist = "zipfian"
 
@@ -27,7 +25,6 @@ dist = "zipfian"
 [[benchmark]]
 set_perc = 50
 get_perc = 50
-del_perc = 0
 timeout = 1.0
 dist = "zipfian"
 zipf_hotspot = 0.5
@@ -36,7 +33,6 @@ zipf_hotspot = 0.5
 [[benchmark]]
 set_perc = 5
 get_perc = 95
-del_perc = 0
 timeout = 1.0
 dist = "zipfian"
 
@@ -44,6 +40,5 @@ dist = "zipfian"
 [[benchmark]]
 set_perc = 0
 get_perc = 100
-del_perc = 0
 timeout = 1.0
 dist = "uniform"
