@@ -523,13 +523,14 @@ mod tests {
                    get_perc = 20
                    del_perc = 5
                    scan_perc = 5
-                   scan_n = 10
+                   scan_n = 100
                    klen = 4
                    vlen = 6
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
         let w = Workload::new_from_toml_str(s, None);
+        assert_eq!(w.scan_n, 100);
         assert_eq!(w.kgen.len, 4);
         assert_eq!(w.vlen, 6);
         assert_eq!(w.kgen.min, 0);
@@ -540,7 +541,7 @@ mod tests {
                    get_perc = 20
                    del_perc = 5
                    scan_perc = 5
-                   scan_n = 10
+                   scan_n = 20
                    klen = 40
                    vlen = 60
                    dist = "zipfian"
@@ -549,6 +550,7 @@ mod tests {
                    zipf_theta = 1.0
                    zipf_hotspot = 1.0"#;
         let w = Workload::new_from_toml_str(s, None);
+        assert_eq!(w.scan_n, 20);
         assert_eq!(w.kgen.len, 40);
         assert_eq!(w.vlen, 60);
         assert_eq!(w.kgen.min, 0);
@@ -559,13 +561,14 @@ mod tests {
                    get_perc = 25
                    del_perc = 10
                    scan_perc = 5
-                   scan_n = 10
+                   scan_n = 30
                    klen = 14
                    vlen = 16
                    dist = "shuffle"
                    kmin = 10000
                    kmax = 20000"#;
         let w = Workload::new_from_toml_str(s, Some((1, 2)));
+        assert_eq!(w.scan_n, 30);
         assert_eq!(w.kgen.len, 14);
         assert_eq!(w.vlen, 16);
         assert_eq!(w.kgen.min, 10000);
@@ -674,7 +677,7 @@ mod tests {
                    klen = 4
                    vlen = 6
                    dist = "zipfian"
-                   kmin = 0
+                   kmin = 111
                    kmax = 12345"#;
         let w = Workload::new_from_toml_str(s, None);
         assert_eq!(w.scan_n, 10);
