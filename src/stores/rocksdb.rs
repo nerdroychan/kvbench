@@ -60,7 +60,7 @@ impl KVMapHandle for RocksDB {
         assert!(self.db.delete(key).is_ok());
     }
 
-    fn scan(&mut self, key: &[u8], n: usize) -> Vec<Box<[u8]>> {
+    fn scan(&mut self, key: &[u8], n: usize) -> Vec<(Box<[u8]>, Box<[u8]>)> {
         let mut kv = Vec::with_capacity(n);
         let iter = self
             .db
@@ -70,7 +70,7 @@ impl KVMapHandle for RocksDB {
             if i == n {
                 break;
             }
-            kv.push(item.unwrap().1);
+            kv.push(item.unwrap());
             i += 1;
         }
         kv

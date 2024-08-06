@@ -155,7 +155,8 @@ mod tests {
         assert_eq!(v.len(), 10000);
         for i in 10000..20000usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 10000], bytes);
+            assert_eq!(*v[i - 10000].0, bytes);
+            assert_eq!(*v[i - 10000].1, bytes);
         }
 
         // query 10000 next 20000, should have 10000
@@ -163,7 +164,8 @@ mod tests {
         assert_eq!(v.len(), 10000);
         for i in 10000..20000usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 10000], bytes);
+            assert_eq!(*v[i - 10000].0, bytes);
+            assert_eq!(*v[i - 10000].1, bytes);
         }
 
         // query 10000 next 5, should have 5
@@ -171,7 +173,8 @@ mod tests {
         assert_eq!(v.len(), 5);
         for i in 10000..10005usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 10000], bytes);
+            assert_eq!(*v[i - 10000].0, bytes);
+            assert_eq!(*v[i - 10000].1, bytes);
         }
 
         // query 13333 next 444, should have 444
@@ -179,7 +182,8 @@ mod tests {
         assert_eq!(v.len(), 444);
         for i in 13333..13777usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 13333], bytes);
+            assert_eq!(*v[i - 13333].0, bytes);
+            assert_eq!(*v[i - 13333].1, bytes);
         }
 
         // query 13333 next 0, should have 0
@@ -195,7 +199,8 @@ mod tests {
         assert_eq!(v.len(), 5000);
         for i in 10000..15000usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 10000], bytes);
+            assert_eq!(*v[i - 10000].0, bytes);
+            assert_eq!(*v[i - 10000].1, bytes);
         }
 
         // query 8000 next 5000, should have 5000
@@ -203,7 +208,8 @@ mod tests {
         assert_eq!(v.len(), 5000);
         for i in 10000..15000usize {
             let bytes = i.clone().to_be_bytes();
-            assert_eq!(*v[i - 10000], bytes);
+            assert_eq!(*v[i - 10000].0, bytes);
+            assert_eq!(*v[i - 10000].1, bytes);
         }
     }
 

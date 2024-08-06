@@ -89,9 +89,7 @@ pub trait KVMapHandle {
     fn delete(&mut self, key: &[u8]);
 
     /// Querying a range starting from the first key greater than or equal to the given key.
-    ///
-    /// Note: For simplicity, it returns only the values.
-    fn scan(&mut self, key: &[u8], n: usize) -> Vec<Box<[u8]>>;
+    fn scan(&mut self, key: &[u8], n: usize) -> Vec<(Box<[u8]>, Box<[u8]>)>;
 }
 
 /// A single operation that is applied to the key-value store.
@@ -129,7 +127,12 @@ pub struct Response {
     pub id: usize,
 
     /// The real payload that contains the potential returned value.
-    pub data: Option<Box<[u8]>>,
+    ///
+    /// - For a `SET` or `DELETE` request, this should be `None`.
+    /// - For a `GET` request, this should contain the value of the key (single element).
+    /// - For a `SCAN` request, this should contain the sequence of the range query results, ordered
+    ///   like `key0, value0, key1, value1 ...`.
+    pub data: Option<Vec<Box<[u8]>>>,
 }
 
 /// A non-blocking, thread-safe key-value map.

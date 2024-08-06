@@ -37,45 +37,40 @@ fn read_requests(reader: &mut impl Read) -> Result<Vec<Request>, bincode::Error>
 #[derive(Serialize, Deserialize)]
 struct ResponseHeader {
     id: usize,
-    len: usize,
+    has_data: bool,
 }
 
 fn write_response(
     writer: &mut impl Write,
     id: usize,
-    data: Option<&[u8]>,
+    data: Option<&[&[u8]]>,
 ) -> Result<(), bincode::Error> {
-    let len = match data {
-        Some(data) => data.len(),
-        None => 0,
+    let has_data = match data {
+        Some(_) => true,
+        None => false,
     };
-    let header = ResponseHeader { id, len };
+    let header = ResponseHeader { id, has_data };
     if let Err(e) = bincode::serialize_into(&mut *writer, &header) {
         return Err(e);
     }
     // has payload
-    if len != 0 {
-        if let Err(e) = writer.write_all(data.unwrap()) {
-            return Err(bincode::Error::from(e));
+    if has_data {
+        if let Err(e) = bincode::serialize_into(&mut *writer, data.unwrap()) {
+            return Err(e);
         }
     }
     Ok(())
 }
 
 fn read_response(reader: &mut impl Read) -> Result<Response, bincode::Error> {
-    let header = bincode::deserialize_from::<_, ResponseHeader>(&mut *reader)?;
-    let id = header.id;
-    let len = header.len;
-    if len != 0 {
-        let mut data = vec![0u8; len].into_boxed_slice();
-        if let Err(e) = reader.read_exact(&mut data[..]) {
-            Err(bincode::Error::from(e))
-        } else {
-            Ok(Response {
-                id,
-                data: Some(data),
-            })
-        }
+    let ResponseHeader { id, has_data } =
+        bincode::deserialize_from::<_, ResponseHeader>(&mut *reader)?;
+    if has_data {
+        let data = bincode::deserialize_from::<_, Vec<Box<[u8]>>>(&mut *reader)?;
+        Ok(Response {
+            id,
+            data: Some(data),
+        })
     } else {
         Ok(Response { id, data: None })
     }
@@ -102,7 +97,8 @@ fn serve_requests_regular(
             }
             Operation::Get { ref key } => match handle.get(key) {
                 Some(v) => {
-                    assert!(write_response(&mut *writer, id, Some(&v[..]),).is_ok());
+                    let data = &vec![&v[..]];
+                    assert!(write_response(&mut *writer, id, Some(data)).is_ok());
                 }
                 None => {
                     assert!(write_response(&mut *writer, id, None).is_ok());
@@ -113,9 +109,15 @@ fn serve_requests_regular(
                 assert!(write_response(&mut *writer, id, None).is_ok());
             }
             Operation::Scan { ref key, n } => {
-                for v in handle.scan(key, *n) {
-                    assert!(write_response(&mut *writer, id, Some(&v[..])).is_ok());
-                }
+                let kv = handle.scan(key, *n);
+                let data = kv
+                    .iter()
+                    .fold(Vec::with_capacity(kv.len() * 2), |mut vec, kv| {
+                        vec.push(&kv.0[..]);
+                        vec.push(&kv.1[..]);
+                        vec
+                    });
+                assert!(write_response(&mut *writer, id, Some(&data[..])).is_ok());
             }
         }
     }
@@ -230,12 +232,20 @@ type StreamMap = HashMap<Token, Connection>;
 
 impl AsyncResponder for ResponseWriter {
     fn callback(&self, response: Response) {
-        assert!(write_response(
-            &mut *self.0.borrow_mut(),
-            response.id,
-            response.data.as_deref()
-        )
-        .is_ok());
+        let Response { id, data } = response;
+        match data {
+            Some(data) => {
+                assert!(write_response(
+                    &mut *self.0.borrow_mut(),
+                    id,
+                    Some(&data.iter().map(|d| &d[..]).collect::<Vec<&[u8]>>()[..])
+                )
+                .is_ok());
+            }
+            None => {
+                assert!(write_response(&mut *self.0.borrow_mut(), id, None).is_ok());
+            }
+        }
     }
 }
 
@@ -680,7 +690,10 @@ impl KVClient {
         let response = responses.pop().unwrap();
         assert_eq!(response.id, 0);
         match response.data {
-            Some(v) => Some(v),
+            Some(mut v) => {
+                assert_eq!(v.len(), 1);
+                v.pop()
+            }
             None => None,
         }
     }
@@ -906,7 +919,7 @@ mod tests {
                             // set
                             assert_eq!(r.data, None);
                         } else {
-                            assert_eq!(r.data, Some([170u8; 16].into()));
+                            assert_eq!(r.data, Some(vec![[170u8; 16].into()]));
                         }
                         pending -= 1;
                     }
@@ -927,7 +940,7 @@ mod tests {
                         // set
                         assert_eq!(r.data, None);
                     } else {
-                        assert_eq!(r.data, Some([170u8; 16].into()));
+                        assert_eq!(r.data, Some(vec![[170u8; 16].into()]));
                     }
                     pending -= 1;
                 }

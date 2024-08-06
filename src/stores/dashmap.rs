@@ -47,7 +47,7 @@ impl KVMapHandle for DashMap {
         self.0.remove(key);
     }
 
-    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<(Box<[u8]>, Box<[u8]>)> {
         unimplemented!("Range query is not supported");
     }
 }

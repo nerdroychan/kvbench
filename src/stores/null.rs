@@ -55,7 +55,7 @@ impl KVMapHandle for NullMap {
 
     fn delete(&mut self, _key: &[u8]) {}
 
-    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<Box<[u8]>> {
+    fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<(Box<[u8]>, Box<[u8]>)> {
         Vec::new()
     }
 }
