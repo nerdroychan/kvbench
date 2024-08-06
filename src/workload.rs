@@ -162,11 +162,11 @@ pub struct WorkloadOpt {
     /// Percentage of `GET` operations.
     pub get_perc: u8,
 
-    /// Percentage of `DELETE` operations.
-    pub del_perc: u8,
+    /// Percentage of `DELETE` operations (optional, default 0).
+    pub del_perc: Option<u8>,
 
-    /// Percentage of `SCAN` operations.
-    pub scan_perc: u8,
+    /// Percentage of `SCAN` operations (optional, default 0).
+    pub scan_perc: Option<u8>,
 
     /// The number of iterations per `SCAN` (only used when `scan_perc` is non-zero, default 10).
     pub scan_n: Option<usize>,
@@ -229,12 +229,16 @@ pub struct Workload {
 impl Workload {
     pub fn new(opt: &WorkloadOpt, thread_info: Option<(usize, usize)>) -> Self {
         // input sanity checks
+        let set_perc = opt.set_perc;
+        let get_perc = opt.get_perc;
+        let del_perc = opt.del_perc.unwrap_or(0);
+        let scan_perc = opt.scan_perc.unwrap_or(0);
         assert_eq!(
-            opt.set_perc + opt.get_perc + opt.del_perc + opt.scan_perc,
+            set_perc + get_perc + del_perc + scan_perc,
             100,
             "sum of ops in a mix should be 100"
         );
-        let scan_n = opt.scan_n.expect("scan_n should be specified");
+        let scan_n = opt.scan_n.unwrap_or(10);
         let klen = opt.klen.expect("klen should be specified");
         let vlen = opt.vlen.expect("vlen should be specified");
         let kmin = opt.kmin.expect("kmin should be specified");
@@ -256,7 +260,7 @@ impl Workload {
             (kminp, kmaxp)
         };
 
-        let mix = Mix::new(opt.set_perc, opt.get_perc, opt.del_perc, opt.scan_perc);
+        let mix = Mix::new(set_perc, get_perc, del_perc, scan_perc);
         let kgen = match opt.dist.as_str() {
             "increment" => KeyGenerator::new_increment(klen, kmin, kmax),
             "incrementp" => {
@@ -664,12 +668,26 @@ mod tests {
     }
 
     #[test]
+    fn workload_toml_defaults_are_applied() {
+        let s = r#"set_perc = 70
+                   get_perc = 30
+                   klen = 4
+                   vlen = 6
+                   dist = "zipfian"
+                   kmin = 0
+                   kmax = 12345"#;
+        let w = Workload::new_from_toml_str(s, None);
+        assert_eq!(w.scan_n, 10);
+        assert!(matches!(w.kgen.dist, KeyDistribution::Zipfian(_, 0)));
+    }
+
+    #[test]
     fn workload_keygen_parallel() {
         let mut opt = WorkloadOpt {
             set_perc: 50,
             get_perc: 50,
-            del_perc: 0,
-            scan_perc: 0,
+            del_perc: None,
+            scan_perc: None,
             scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
@@ -704,8 +722,8 @@ mod tests {
         let mut opt = WorkloadOpt {
             set_perc: 100,
             get_perc: 0,
-            del_perc: 0,
-            scan_perc: 0,
+            del_perc: None,
+            scan_perc: None,
             scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
@@ -743,8 +761,8 @@ mod tests {
         let opt = WorkloadOpt {
             set_perc: 5,
             get_perc: 95,
-            del_perc: 0,
-            scan_perc: 0,
+            del_perc: None,
+            scan_perc: None,
             scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
@@ -790,8 +808,8 @@ mod tests {
         let opt = WorkloadOpt {
             set_perc: 50,
             get_perc: 50,
-            del_perc: 0,
-            scan_perc: 0,
+            del_perc: None,
+            scan_perc: None,
             scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
@@ -831,5 +849,50 @@ mod tests {
             assert!(*c < 12000 && *c > 8000);
         }
         assert!(set < 5500000 && set > 4500000);
+    }
+
+    #[test]
+    fn workload_even_operations() {
+        let opt = WorkloadOpt {
+            set_perc: 25,
+            get_perc: 25,
+            del_perc: Some(25),
+            scan_perc: Some(25),
+            scan_n: None,
+            klen: Some(16),
+            vlen: Some(100),
+            dist: "uniform".to_string(),
+            kmin: Some(1000),
+            kmax: Some(2000),
+            zipf_theta: None,
+            zipf_hotspot: None,
+        };
+        let mut workload = Workload::new(&opt, None);
+        let mut set = 0;
+        let mut get = 0;
+        let mut del = 0;
+        let mut scan = 0;
+        let mut rng = rand::thread_rng();
+        for _ in 0..10000000 {
+            let op = workload.next(&mut rng);
+            match op {
+                Operation::Set { .. } => {
+                    set += 1;
+                }
+                Operation::Get { .. } => {
+                    get += 1;
+                }
+                Operation::Delete { .. } => {
+                    del += 1;
+                }
+                Operation::Scan { .. } => {
+                    scan += 1;
+                }
+            }
+        }
+        assert!(set > 2400000 && set < 2600000);
+        assert!(get > 2400000 && get < 2600000);
+        assert!(del > 2400000 && del < 2600000);
+        assert!(scan > 2400000 && scan < 2600000);
     }
 }

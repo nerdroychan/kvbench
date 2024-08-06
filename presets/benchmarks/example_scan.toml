@@ -12,8 +12,6 @@ kmax = 1000
 [[benchmark]]
 set_perc = 100
 get_perc = 0
-del_perc = 0
-scan_perc = 0
 repeat = 1
 dist = "incrementp"
 
@@ -21,7 +19,6 @@ dist = "incrementp"
 timeout = 0.2
 set_perc = 50
 get_perc = 25
-del_perc = 0
 scan_perc = 25
 dist = "zipfian"
 
@@ -29,6 +26,5 @@ dist = "zipfian"
 timeout = 0.2
 set_perc = 50
 get_perc = 25
-del_perc = 0
 scan_perc = 25
 dist = "uniform"

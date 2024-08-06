@@ -362,7 +362,6 @@ pub struct GlobalOpt {
     pub latency: Option<bool>,
     pub cdf: Option<bool>,
     // workload
-    pub scan_n: Option<usize>,
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
     pub kmin: Option<usize>,
@@ -379,7 +378,6 @@ impl Default for GlobalOpt {
             report: None,
             latency: None,
             cdf: None,
-            scan_n: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -407,12 +405,6 @@ impl GlobalOpt {
             .cdf
             .clone()
             .or_else(|| Some(self.cdf.clone().unwrap_or(false)));
-        // the workload options (fall back to defaults)
-        opt.workload.scan_n = opt
-            .workload
-            .scan_n
-            .clone()
-            .or_else(|| Some(self.scan_n.clone().unwrap_or(10)));
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -1112,7 +1104,6 @@ mod tests {
             report = "finish"
             latency = true
             cdf = true
-            scan_n = 500
             klen = 8
             vlen = 16
             kmin = 100
@@ -1133,10 +1124,10 @@ mod tests {
         let wopt = WorkloadOpt {
             set_perc: 50,
             get_perc: 30,
-            del_perc: 10,
-            scan_perc: 10,
+            del_perc: Some(10),
+            scan_perc: Some(10),
             dist: "incrementp".to_string(),
-            scan_n: Some(500),
+            scan_n: None,
             klen: Some(8),
             vlen: Some(16),
             kmin: Some(100),
@@ -1184,9 +1175,9 @@ mod tests {
         let wopt = WorkloadOpt {
             set_perc: 50,
             get_perc: 30,
-            del_perc: 10,
-            scan_perc: 10,
-            scan_n: Some(10),
+            del_perc: Some(10),
+            scan_perc: Some(10),
+            scan_n: None,
             dist: "shufflep".to_string(),
             klen: Some(8),
             vlen: Some(16),
