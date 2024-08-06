@@ -362,7 +362,7 @@ pub struct GlobalOpt {
     pub latency: Option<bool>,
     pub cdf: Option<bool>,
     // workload
-    pub scan: Option<usize>,
+    pub scan_n: Option<usize>,
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
     pub kmin: Option<usize>,
@@ -379,7 +379,7 @@ impl Default for GlobalOpt {
             report: None,
             latency: None,
             cdf: None,
-            scan: None,
+            scan_n: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -408,11 +408,11 @@ impl GlobalOpt {
             .clone()
             .or_else(|| Some(self.cdf.clone().unwrap_or(false)));
         // the workload options (fall back to defaults)
-        opt.workload.scan = opt
+        opt.workload.scan_n = opt
             .workload
-            .scan
+            .scan_n
             .clone()
-            .or_else(|| Some(self.scan.clone().unwrap_or(10)));
+            .or_else(|| Some(self.scan_n.clone().unwrap_or(10)));
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -1112,7 +1112,7 @@ mod tests {
             report = "finish"
             latency = true
             cdf = true
-            scan = 500
+            scan_n = 500
             klen = 8
             vlen = 16
             kmin = 100
@@ -1136,7 +1136,7 @@ mod tests {
             del_perc: 10,
             scan_perc: 10,
             dist: "incrementp".to_string(),
-            scan: Some(500),
+            scan_n: Some(500),
             klen: Some(8),
             vlen: Some(16),
             kmin: Some(100),
@@ -1186,8 +1186,8 @@ mod tests {
             get_perc: 30,
             del_perc: 10,
             scan_perc: 10,
+            scan_n: Some(10),
             dist: "shufflep".to_string(),
-            scan: Some(10),
             klen: Some(8),
             vlen: Some(16),
             kmin: Some(1),

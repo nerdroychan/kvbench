@@ -169,7 +169,7 @@ pub struct WorkloadOpt {
     pub scan_perc: u8,
 
     /// The number of iterations per `SCAN` (only used when `scan_perc` is non-zero, default 10).
-    pub scan: Option<usize>,
+    pub scan_n: Option<usize>,
 
     /// Key length in bytes.
     pub klen: Option<usize>,
@@ -219,7 +219,7 @@ pub struct Workload {
     /// Key generator based on distribution
     kgen: KeyGenerator,
     /// Scan length
-    scan: usize,
+    scan_n: usize,
     /// Value length for operations that need a value
     vlen: usize,
     /// How many operations have been access so far
@@ -234,12 +234,12 @@ impl Workload {
             100,
             "sum of ops in a mix should be 100"
         );
-        let scan = opt.scan.expect("scan should be specified");
+        let scan_n = opt.scan_n.expect("scan_n should be specified");
         let klen = opt.klen.expect("klen should be specified");
         let vlen = opt.vlen.expect("vlen should be specified");
         let kmin = opt.kmin.expect("kmin should be specified");
         let kmax = opt.kmax.expect("kmax should be specified");
-        assert!(scan > 0, "scan size should be positive");
+        assert!(scan_n > 0, "scan size should be positive");
         assert!(klen > 0, "klen should be positive");
         assert!(kmax > kmin, "kmax should be greater than kmin");
 
@@ -286,7 +286,7 @@ impl Workload {
         Self {
             mix,
             kgen,
-            scan,
+            scan_n,
             vlen,
             count: 0,
         }
@@ -316,7 +316,10 @@ impl Workload {
             }
             OperationType::Get => Operation::Get { key },
             OperationType::Delete => Operation::Delete { key },
-            OperationType::Scan => Operation::Scan { key, n: self.scan },
+            OperationType::Scan => Operation::Scan {
+                key,
+                n: self.scan_n,
+            },
         }
     }
 
@@ -516,7 +519,7 @@ mod tests {
                    get_perc = 20
                    del_perc = 5
                    scan_perc = 5
-                   scan = 10
+                   scan_n = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -533,7 +536,7 @@ mod tests {
                    get_perc = 20
                    del_perc = 5
                    scan_perc = 5
-                   scan = 10
+                   scan_n = 10
                    klen = 40
                    vlen = 60
                    dist = "zipfian"
@@ -552,7 +555,7 @@ mod tests {
                    get_perc = 25
                    del_perc = 10
                    scan_perc = 5
-                   scan = 10
+                   scan_n = 10
                    klen = 14
                    vlen = 16
                    dist = "shuffle"
@@ -573,7 +576,7 @@ mod tests {
                    get_perc = 40
                    del_perc = 0
                    scan_perc = 0
-                   scan = 10
+                   scan_n = 10
                    klen = 0
                    vlen = 6
                    dist = "uniform"
@@ -589,7 +592,7 @@ mod tests {
                    get_perc = 40
                    del_perc = 0
                    scan_perc = 0
-                   scan = 0
+                   scan_n = 0
                    klen = 2
                    vlen = 6
                    dist = "uniform"
@@ -605,7 +608,7 @@ mod tests {
                    get_perc = 40
                    del_perc = 0
                    scan_perc = 0
-                   scan = 10
+                   scan_n = 10
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
@@ -619,7 +622,7 @@ mod tests {
                    get_perc = 40
                    del_perc = 0
                    scan_perc = 0
-                   scan = 10
+                   scan_n = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -635,7 +638,7 @@ mod tests {
                    get_perc = 40
                    del_perc = 0
                    scan_perc = 0
-                   scan = 10
+                   scan_n = 10
                    klen = 4
                    vlen = 6
                    dist = "uniform"
@@ -651,7 +654,7 @@ mod tests {
                    get_perc = 30
                    del_perc = 0
                    scan_perc = 0
-                   scan = 10
+                   scan_n = 10
                    klen = 4
                    vlen = 6
                    dist = "uniorm"
@@ -667,7 +670,7 @@ mod tests {
             get_perc: 50,
             del_perc: 0,
             scan_perc: 0,
-            scan: Some(10),
+            scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "incrementp".to_string(),
@@ -703,7 +706,7 @@ mod tests {
             get_perc: 0,
             del_perc: 0,
             scan_perc: 0,
-            scan: Some(10),
+            scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "incrementp".to_string(),
@@ -742,7 +745,7 @@ mod tests {
             get_perc: 95,
             del_perc: 0,
             scan_perc: 0,
-            scan: Some(10),
+            scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "latest".to_string(),
@@ -789,7 +792,7 @@ mod tests {
             get_perc: 50,
             del_perc: 0,
             scan_perc: 0,
-            scan: Some(10),
+            scan_n: Some(10),
             klen: Some(16),
             vlen: Some(100),
             dist: "uniform".to_string(),
