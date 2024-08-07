@@ -127,7 +127,7 @@ pub mod scc;
 mod tests {
     use super::*;
 
-    fn map_test(map: &impl KVMap) {
+    fn _map_test(map: &impl KVMap) {
         let mut handle = map.handle();
         // insert + get
         handle.set(b"foo", b"bar");
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(handle.get(b"foo"), None);
     }
 
-    fn map_test_scan(map: &impl KVMap) {
+    fn _map_test_scan(map: &impl KVMap) {
         let mut handle = map.handle();
         for i in 10000..20000usize {
             let bytes = i.clone().to_be_bytes();
@@ -216,62 +216,62 @@ mod tests {
     #[test]
     fn mutex_btreemap() {
         let mut map = btreemap::MutexBTreeMap::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     fn rwlock_btreemap() {
         let mut map = btreemap::RwLockBTreeMap::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     #[cfg(feature = "chashmap")]
     fn chashmap() {
         let mut map = chashmap::CHashMap::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     #[cfg(feature = "contrie")]
     fn contrie() {
         let mut map = contrie::Contrie::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     #[cfg(feature = "dashmap")]
     fn dashmap() {
         let mut map = dashmap::DashMap::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     #[cfg(feature = "flurry")]
     fn flurry() {
         let mut map = flurry::Flurry::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     fn mutex_hashmap() {
         let opt = hashmap::MutexHashMapOpt { shards: 512 };
         let mut map = hashmap::MutexHashMap::new(&opt);
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     fn rwlock_hashmap() {
         let opt = hashmap::RwLockHashMapOpt { shards: 512 };
         let mut map = hashmap::RwLockHashMap::new(&opt);
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
     #[cfg(feature = "papaya")]
     fn papaya() {
         let mut map = papaya::Papaya::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
@@ -284,7 +284,7 @@ mod tests {
     #[cfg(feature = "scc")]
     fn scchashmap() {
         let mut map = scc::SccHashMap::new();
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
@@ -295,7 +295,7 @@ mod tests {
             path: tmp_dir.path().to_str().unwrap().to_string(),
         };
         let mut map = rocksdb::RocksDB::new(&opt);
-        map_test(&mut map);
+        _map_test(&mut map);
     }
 
     #[test]
@@ -306,6 +306,6 @@ mod tests {
             path: tmp_dir.path().to_str().unwrap().to_string(),
         };
         let mut map = rocksdb::RocksDB::new(&opt);
-        map_test_scan(&mut map);
+        _map_test_scan(&mut map);
     }
 }
