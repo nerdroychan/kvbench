@@ -10,7 +10,6 @@ kmax = 1000
 
 [[benchmark]]
 set_perc = 100
-get_perc = 0
 repeat = 1
 dist = "incrementp"
 

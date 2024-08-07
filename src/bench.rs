@@ -1122,8 +1122,8 @@ mod tests {
         assert_eq!(bg.len(), 1);
 
         let wopt = WorkloadOpt {
-            set_perc: 50,
-            get_perc: 30,
+            set_perc: Some(50),
+            get_perc: Some(30),
             del_perc: Some(10),
             scan_perc: Some(10),
             dist: "incrementp".to_string(),
@@ -1173,8 +1173,8 @@ mod tests {
         assert_eq!(bg.len(), 1);
 
         let wopt = WorkloadOpt {
-            set_perc: 50,
-            get_perc: 30,
+            set_perc: Some(50),
+            get_perc: Some(30),
             del_perc: Some(10),
             scan_perc: Some(10),
             scan_n: None,

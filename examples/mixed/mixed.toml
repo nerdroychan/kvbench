@@ -9,7 +9,6 @@ report = "repeat"
 
 [[benchmark]]
 set_perc = 100
-get_perc = 0
 repeat = 1
 dist = "incrementp"
 report = "hidden"
@@ -38,7 +37,6 @@ dist = "zipfian"
 
 # read-only, uniform
 [[benchmark]]
-set_perc = 0
 get_perc = 100
 timeout = 1.0
 dist = "uniform"

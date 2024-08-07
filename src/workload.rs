@@ -156,11 +156,11 @@ impl KeyGenerator {
 /// options, all fields must be present.
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkloadOpt {
-    /// Percentage of `SET` operations.
-    pub set_perc: u8,
+    /// Percentage of `SET` operations (optional, default 0).
+    pub set_perc: Option<u8>,
 
-    /// Percentage of `GET` operations.
-    pub get_perc: u8,
+    /// Percentage of `GET` operations (optional, default 0).
+    pub get_perc: Option<u8>,
 
     /// Percentage of `DELETE` operations (optional, default 0).
     pub del_perc: Option<u8>,
@@ -229,8 +229,8 @@ pub struct Workload {
 impl Workload {
     pub fn new(opt: &WorkloadOpt, thread_info: Option<(usize, usize)>) -> Self {
         // input sanity checks
-        let set_perc = opt.set_perc;
-        let get_perc = opt.get_perc;
+        let set_perc = opt.set_perc.unwrap_or(0);
+        let get_perc = opt.get_perc.unwrap_or(0);
         let del_perc = opt.del_perc.unwrap_or(0);
         let scan_perc = opt.scan_perc.unwrap_or(0);
         assert_eq!(
@@ -655,6 +655,17 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "should be 100")]
+    fn workload_toml_invalid_wrong_mix_missing() {
+        let s = r#"klen = 4
+                   vlen = 6
+                   dist = "uniform"
+                   kmin = 0
+                   kmax = 12345"#;
+        let _ = Workload::new_from_toml_str(s, None);
+    }
+
+    #[test]
     #[should_panic(expected = "invalid key distribution")]
     fn workload_toml_invalid_key_distribution() {
         let s = r#"set_perc = 70
@@ -687,8 +698,8 @@ mod tests {
     #[test]
     fn workload_keygen_parallel() {
         let mut opt = WorkloadOpt {
-            set_perc: 50,
-            get_perc: 50,
+            set_perc: Some(100),
+            get_perc: None,
             del_perc: None,
             scan_perc: None,
             scan_n: Some(10),
@@ -723,8 +734,8 @@ mod tests {
     #[test]
     fn workload_keygen_parallel_fill() {
         let mut opt = WorkloadOpt {
-            set_perc: 100,
-            get_perc: 0,
+            set_perc: Some(100),
+            get_perc: None,
             del_perc: None,
             scan_perc: None,
             scan_n: Some(10),
@@ -762,8 +773,8 @@ mod tests {
     #[test]
     fn workload_keygen_zipfian_latest() {
         let opt = WorkloadOpt {
-            set_perc: 5,
-            get_perc: 95,
+            set_perc: Some(5),
+            get_perc: Some(95),
             del_perc: None,
             scan_perc: None,
             scan_n: Some(10),
@@ -809,8 +820,8 @@ mod tests {
     #[test]
     fn workload_uniform_write_intensive() {
         let opt = WorkloadOpt {
-            set_perc: 50,
-            get_perc: 50,
+            set_perc: Some(50),
+            get_perc: Some(50),
             del_perc: None,
             scan_perc: None,
             scan_n: Some(10),
@@ -857,8 +868,8 @@ mod tests {
     #[test]
     fn workload_even_operations() {
         let opt = WorkloadOpt {
-            set_perc: 25,
-            get_perc: 25,
+            set_perc: Some(25),
+            get_perc: Some(25),
             del_perc: Some(25),
             scan_perc: Some(25),
             scan_n: None,
