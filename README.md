@@ -24,7 +24,6 @@ The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 The missing pieces that are currently under active development:
 
-- Atomic Read-modify-write (RMW) support.
-- More key-distributions (e.g., latest key, composite-zipfian).
-- Ordered key-value stores support (range query workloads).
-- Extra built-ins (e.g., YCSB workloads).
+- Rate-limited benchmark.
+- Read-modify-write (RMW) support.
+- More built-in stores.
