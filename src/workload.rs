@@ -1,8 +1,6 @@
 //! Workload generator.
 
 use crate::Operation;
-use figment::providers::{Env, Format, Toml};
-use figment::Figment;
 use rand::distributions::{Distribution, Uniform, WeightedIndex};
 use rand::prelude::SliceRandom;
 use rand::Rng;
@@ -213,7 +211,7 @@ pub struct WorkloadOpt {
 /// pressurize the memory allocator, it might be a good idea to randomly adding a byte or two at
 /// each generated values.
 #[derive(Debug)]
-pub struct Workload {
+pub(crate) struct Workload {
     /// Percentage of different operations
     mix: Mix,
     /// Key generator based on distribution
@@ -294,15 +292,6 @@ impl Workload {
             vlen,
             count: 0,
         }
-    }
-
-    pub fn new_from_toml_str(text: &str, thread_info: Option<(usize, usize)>) -> Self {
-        let opt: WorkloadOpt = Figment::new()
-            .merge(Toml::string(text))
-            .merge(Env::raw())
-            .extract()
-            .unwrap();
-        Self::new(&opt, thread_info)
     }
 
     pub fn next(&mut self, rng: &mut impl Rng) -> Operation {
@@ -529,7 +518,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let w = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let w = Workload::new(&opt, None);
         assert_eq!(w.scan_n, 100);
         assert_eq!(w.kgen.len, 4);
         assert_eq!(w.vlen, 6);
@@ -549,7 +539,8 @@ mod tests {
                    kmax = 123450
                    zipf_theta = 1.0
                    zipf_hotspot = 1.0"#;
-        let w = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let w = Workload::new(&opt, None);
         assert_eq!(w.scan_n, 20);
         assert_eq!(w.kgen.len, 40);
         assert_eq!(w.vlen, 60);
@@ -567,7 +558,8 @@ mod tests {
                    dist = "shuffle"
                    kmin = 10000
                    kmax = 20000"#;
-        let w = Workload::new_from_toml_str(s, Some((1, 2)));
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let w = Workload::new(&opt, None);
         assert_eq!(w.scan_n, 30);
         assert_eq!(w.kgen.len, 14);
         assert_eq!(w.vlen, 16);
@@ -589,7 +581,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -605,7 +598,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -619,7 +613,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -635,7 +630,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 5
                    kmax = 1"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -651,7 +647,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -662,7 +659,8 @@ mod tests {
                    dist = "uniform"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -678,7 +676,8 @@ mod tests {
                    dist = "uniorm"
                    kmin = 0
                    kmax = 12345"#;
-        let _ = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let _ = Workload::new(&opt, None);
     }
 
     #[test]
@@ -690,7 +689,8 @@ mod tests {
                    dist = "zipfian"
                    kmin = 111
                    kmax = 12345"#;
-        let w = Workload::new_from_toml_str(s, None);
+        let opt: WorkloadOpt = toml::from_str(s).unwrap();
+        let w = Workload::new(&opt, None);
         assert_eq!(w.scan_n, 10);
         assert!(matches!(w.kgen.dist, KeyDistribution::Zipfian(_, 0)));
     }
