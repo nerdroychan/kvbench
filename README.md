@@ -24,6 +24,6 @@ The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 The missing pieces that are currently under active development:
 
-- Rate-limited benchmark.
 - Read-modify-write (RMW) support.
-- More built-in stores.
+- More built-in stores and benchmark parameters.
+- Enhanced error messages for better ergonomics.

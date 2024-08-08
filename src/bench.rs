@@ -219,7 +219,7 @@ pub struct BenchmarkOpt {
     /// Default: 1.
     pub qd: Option<usize>,
 
-    /// Batch size for each request Only useful with [`AsyncKVMap`].
+    /// Batch size for each request. Only useful with [`AsyncKVMap`].
     ///
     /// Default: 1.
     pub batch: Option<usize>,
@@ -235,6 +235,15 @@ pub struct BenchmarkOpt {
     ///
     /// Default: false.
     pub cdf: Option<bool>,
+
+    /// If set, the overall throughput is roughly limited to the number given (unit in kops).
+    ///
+    /// This is useful to check the maximum throughput that the system could reach with
+    /// controllable latency metrics. If this option is set, `latency` must also be set to true.
+    /// 0 means unlimited.
+    ///
+    /// Default: 0.
+    pub rate_limit: Option<u64>,
 
     /// The definition of a workload.
     ///
@@ -271,6 +280,14 @@ impl BenchmarkOpt {
                 "when cdf is true, latency must also be true"
             );
         }
+        if let Some(r) = self.rate_limit {
+            if r > 0 {
+                assert!(
+                    *self.latency.as_ref().unwrap(),
+                    "when rate_limit is set, latency must be true"
+                );
+            }
+        }
         assert!(
             *self.qd.as_ref().unwrap() > 0,
             "queue depth should be positive if given"
@@ -293,6 +310,7 @@ pub struct Benchmark {
     report: ReportMode,
     latency: bool,
     cdf: bool,
+    rate_limit: u64,
     wopt: WorkloadOpt,
 }
 
@@ -328,6 +346,7 @@ impl Benchmark {
         };
         let latency = opt.latency.unwrap();
         let cdf = opt.cdf.unwrap();
+        let rate_limit = opt.rate_limit.unwrap();
         let wopt = opt.workload.clone();
         Self {
             threads,
@@ -338,6 +357,7 @@ impl Benchmark {
             report,
             latency,
             cdf,
+            rate_limit,
             wopt,
         }
     }
@@ -361,6 +381,7 @@ pub struct GlobalOpt {
     pub report: Option<String>,
     pub latency: Option<bool>,
     pub cdf: Option<bool>,
+    pub rate_limit: Option<u64>,
     // workload
     pub klen: Option<usize>,
     pub vlen: Option<usize>,
@@ -378,6 +399,7 @@ impl Default for GlobalOpt {
             report: None,
             latency: None,
             cdf: None,
+            rate_limit: None,
             klen: None,
             vlen: None,
             kmin: None,
@@ -405,6 +427,11 @@ impl GlobalOpt {
             .cdf
             .clone()
             .or_else(|| Some(self.cdf.clone().unwrap_or(false)));
+        opt.rate_limit = opt
+            .rate_limit
+            .clone()
+            .or_else(|| Some(self.rate_limit.clone().unwrap_or(0)));
+
         // the workload options (must be specified)
         opt.workload.klen = opt
             .workload
@@ -474,7 +501,7 @@ pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
 fn bench_phase_should_break(
     len: &Length,
     count: u64,
-    start: &Instant,
+    start: Instant,
     workload: &mut Workload,
 ) -> bool {
     match len {
@@ -486,7 +513,7 @@ fn bench_phase_should_break(
         Length::Timeout(duration) => {
             // only checks after a certain interval
             if count % TIME_CHECK_INTERVAL == 0 {
-                if Instant::now().duration_since(*start) >= *duration {
+                if Instant::now().duration_since(start) >= *duration {
                     return true;
                 }
             }
@@ -716,6 +743,42 @@ fn bench_stat_final(
     }
 }
 
+/// A simple rate limiter when the benchmark needs to limit its throughput.
+///
+/// If the `ops` given is non-zero, calling `backoff` will halt the process until the target
+/// throughput is achieved. Otherwise, it does nothing.
+struct RateLimiter {
+    ops: u64,
+}
+
+impl RateLimiter {
+    fn new(kops: u64, nr_threads: usize) -> Self {
+        let ops = match kops {
+            0 => 0,
+            r => {
+                let per = r * 1000 / u64::try_from(nr_threads).unwrap() + 1;
+                per
+            }
+        };
+        Self { ops }
+    }
+
+    #[inline(always)]
+    fn backoff(&self, count: u64, start: Instant) {
+        if self.ops == 0 {
+            return;
+        }
+        // self.kops is the target rate in kops, which is op/ms
+        loop {
+            let elapsed = u64::try_from(start.elapsed().as_nanos()).unwrap();
+            let ops = count * 1_000_000_000 / elapsed;
+            if ops <= self.ops {
+                break;
+            }
+        }
+    }
+}
+
 fn bench_worker_regular(
     map: Arc<Box<impl KVMap + ?Sized>>,
     context: WorkerContext,
@@ -738,11 +801,11 @@ fn bench_worker_regular(
         true => Some(measurements[id].latency.lock()),
         false => None,
     };
-
     let latency_tick = match latency {
         Some(_) => || Some(Instant::now()),
         None => || None,
     };
+    let rate_limiter = RateLimiter::new(benchmark.rate_limit, thread_info.1);
 
     let mut handle = map.handle();
     let mut rng = rand::thread_rng();
@@ -776,8 +839,12 @@ fn bench_worker_regular(
                 l.record(op_end.unwrap() - op_start.unwrap());
             }
             *counter += 1;
+
+            // internally it will not do anything if no rate limiter is in place
+            rate_limiter.backoff(*counter, start);
+
             // check if we need to break
-            if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
+            if bench_phase_should_break(&benchmark.len, *counter, start, &mut workload) {
                 workload.reset();
                 break;
             }
@@ -849,6 +916,7 @@ fn bench_worker_async(
         true => Some(measurements[id].latency.lock()),
         false => None,
     };
+    let rate_limiter = RateLimiter::new(benchmark.rate_limit, thread_info.1);
 
     let responder = Rc::new(RefCell::new(Vec::<Response>::new()));
     let mut handle = map.handle(responder.clone());
@@ -877,7 +945,7 @@ fn bench_worker_async(
                 // otherwise the last check may fail because the time check is after a certain
                 // interval, but the mod is never 0
                 *counter += 1;
-                if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
+                if bench_phase_should_break(&benchmark.len, *counter, start, &mut workload) {
                     break;
                 }
             }
@@ -891,7 +959,11 @@ fn bench_worker_async(
                     l.async_register(r.id, submit);
                 }
             }
-            if bench_phase_should_break(&benchmark.len, *counter, &start, &mut workload) {
+
+            // try limit rate after a batch is sent
+            rate_limiter.backoff(*counter, start);
+
+            if bench_phase_should_break(&benchmark.len, *counter, start, &mut workload) {
                 workload.reset();
                 break;
             }
@@ -1104,6 +1176,7 @@ mod tests {
             report = "finish"
             latency = true
             cdf = true
+            rate_limit = 5
             klen = 8
             vlen = 16
             kmin = 100
@@ -1144,6 +1217,7 @@ mod tests {
             report: ReportMode::Finish,
             latency: true,
             cdf: true,
+            rate_limit: 5,
             len: Length::Timeout(Duration::from_secs_f32(10.0)),
             wopt,
         };
@@ -1195,6 +1269,7 @@ mod tests {
             report: ReportMode::All,
             latency: false,
             cdf: false,
+            rate_limit: 0,
             len: Length::Exhaust,
             wopt,
         };
@@ -1308,7 +1383,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "latency must also be true")]
-    fn invalid_latency() {
+    fn invalid_latency_cdf() {
         let opt = r#"
             [map]
             name = "nullmap"
@@ -1322,6 +1397,32 @@ mod tests {
             [[benchmark]]
             timeout = 1.0
             cdf = true
+            set_perc = 100
+            get_perc = 0
+            del_perc = 0
+            scan_perc = 0
+            dist = "incrementp"
+        "#;
+
+        let (_, _) = init(opt);
+    }
+
+    #[test]
+    #[should_panic(expected = "latency must be true")]
+    fn invalid_latency_rate_limit() {
+        let opt = r#"
+            [map]
+            name = "nullmap"
+
+            [global]
+            klen = 8
+            vlen = 16
+            kmin = 0
+            kmax = 1000
+
+            [[benchmark]]
+            timeout = 1.0
+            rate_limit = 1000
             set_perc = 100
             get_perc = 0
             del_perc = 0
