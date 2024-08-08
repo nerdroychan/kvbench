@@ -11,22 +11,30 @@
 //! it is with the [`JoinHandle`]. Because the purpose is not general spawn-join but solely for
 //! benchmark code, which does not use any return values.
 
+/// A join handle returned by a spawn function.
 pub trait JoinHandle {
+    /// Join the thread, consume the boxed self.
     fn join(self: Box<Self>);
 }
 
+/// A thread management abstraction.
 pub trait Thread {
+    /// Spawn a new thread using a boxed closure.
     fn spawn(&self, f: Box<dyn FnOnce() + Send>) -> Box<dyn JoinHandle>;
 
+    /// Yield the current thread.
     fn yield_now(&self);
 
+    /// Pin the current thread to a certain CPU core.
     fn pin(&self, core: usize);
 }
 
+/// A zero-sized wrapper for [`std::thread`] functions.
 #[derive(Clone)]
-pub(crate) struct DefaultThread;
+pub struct DefaultThread;
 
-pub(crate) struct DefaultJoinHandle(std::thread::JoinHandle<()>);
+/// A wrapper for [`std::thread::JoinHandle`].
+pub struct DefaultJoinHandle(std::thread::JoinHandle<()>);
 
 impl JoinHandle for DefaultJoinHandle {
     fn join(self: Box<Self>) {

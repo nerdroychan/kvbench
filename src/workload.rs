@@ -148,37 +148,66 @@ impl KeyGenerator {
 
 /// A set of workload parameters that can be deserialized from a TOML string.
 ///
-/// This struct is used for interacting with workload configuration files and also create new
-/// [`Workload`] instances. Some options are wrapped in an `Option` type to ease writing
-/// configuration files. If users would like to create a [`Workload`] instance directly using these
-/// options, all fields must be present.
+/// **Note 1**: If an option not explicitly marked optional and it is not specified by both the file
+/// and the global option, its default value will be applied. If it has no default value, an error
+/// will be raised. The precedence of a value is: file > global (after env overridden) > default.
+///
+/// **Note 2**: the sum of all `*_perc` options must be equal to 100.
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkloadOpt {
-    /// Percentage of `SET` operations (optional, default 0).
+    /// Percentage of `SET` operations.
+    ///
+    /// Must be a non-negative integer if given.
+    ///
+    /// Default: 0.
     pub set_perc: Option<u8>,
 
-    /// Percentage of `GET` operations (optional, default 0).
+    /// Percentage of `GET` operations.
+    ///
+    /// Must be a non-negative integer if given.
+    ///
+    /// Default: 0.
     pub get_perc: Option<u8>,
 
-    /// Percentage of `DELETE` operations (optional, default 0).
+    /// Percentage of `DELETE` operations.
+    ///
+    /// Must be a non-negative integer if given.
+    ///
+    /// Default: 0.
     pub del_perc: Option<u8>,
 
-    /// Percentage of `SCAN` operations (optional, default 0).
+    /// Percentage of `SCAN` operations.
+    ///
+    /// Must be a non-negative integer if given.
+    ///
+    /// Default: 0.
     pub scan_perc: Option<u8>,
 
-    /// The number of iterations per `SCAN` (only used when `scan_perc` is non-zero, default 10).
+    /// The number of iterations per `SCAN`.
+    ///
+    /// Must be a positive integer if provided.
+    ///
+    /// Default: 10.
     pub scan_n: Option<usize>,
 
     /// Key length in bytes.
+    ///
+    /// Must be a positive integer.
     pub klen: Option<usize>,
 
     /// Value length in bytes.
+    ///
+    /// Must be a positive integer.
     pub vlen: Option<usize>,
 
     /// Minimum key.
+    ///
+    /// Must be a non-negative integer.
     pub kmin: Option<usize>,
 
     /// Maximum key.
+    ///
+    /// Must be greater than `kmin`.
     pub kmax: Option<usize>,
 
     /// Key distribution.
@@ -196,12 +225,16 @@ pub struct WorkloadOpt {
     /// - "latest": just like Zipfian but the hotspot is the latest key written to the store.
     pub dist: String,
 
-    /// The theta parameter for Zipfian distribution. (Optional, default 1.0)
+    /// The theta parameter for Zipfian distribution.
+    ///
+    /// Default: 1.0.
     pub zipf_theta: Option<f64>,
 
-    /// The hotspot location for Zipfian distribution. (Optional, default 0.0)
+    /// The hotspot location for Zipfian distribution.
     ///
     /// 0.0 means the first key. 0.5 means approximately the middle in the key space.
+    ///
+    /// Default: 0.0.
     pub zipf_hotspot: Option<f64>,
 }
 

@@ -1,133 +1,4 @@
 //! The core benchmark functionality.
-//!
-//! A benchmark in this crate actually refers to a group of benchmark runs, named **phases**. Users
-//! can provide one or multiple phases that will be run sequentially, each with different
-//! configurations.
-//!
-//! ## Configuration Format
-//!
-//! A benchmark configuration file is formatted in TOML. It consists of the definition of multiple
-//! phases, each is defined in a dictionary named `benchmark`. Phases are organized in an array, so
-//! the configuration of each phase starts with `[[benchmark]]`. It also supports a `[global]`
-//! section in the configuration file that will override the missing field in each phase. This can
-//! reduce the number of repeated options in each phase (e.g., shared options).
-//!
-//! A configuration file generally looks like the following:
-//!
-//! ```toml
-//! [global]
-//! # global options
-//!
-//! [[benchmark]]
-//! # phase 1 configuration
-//!
-//! [[benchmark]]
-//! # phase 2 configuration
-//!
-//! ...
-//! ```
-//!
-//! Available options and their usage can be found in [`BenchmarkOpt`] and [`GlobalOpt`], for phase
-//! and global options, respectively.
-//!
-//! Options in `[global]` section can be overwritten via environment variables without changing the
-//! content in the TOML file.
-//! For example, if the user needs to override `x` in `[global]`, setting the environment variable
-//! `global.x` will get the job done.
-//!
-//! ## Output Format
-//!
-//! Currently, all outputs are in plain text format. This makes the output easy to process using
-//! shell scripts and tools including gnuplot. If there are new data added to the output, it
-//! will be appended at the end of existing entries (but before `cdf` if it exists, see below)
-//! to make sure outputs from old versions can still be processed without changes.
-//!
-//! ### Throughput-only Output (default case)
-//!
-//! When measuring throughput, an output may look like the following:
-//! ```txt
-//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
-//! ```
-//!
-//! The general format is:
-//!
-//! ```txt
-//! phase <p> repeat <r> duration <d> elapsed <e> total <o> mops <t>
-//! ```
-//!
-//! Where:
-//!
-//! - `<p>`: phase id.
-//! - `<r>`: repeat id in a phase, or string `finish .`, if the line is the aggregated report
-//! of a whole phase.
-//! - `<d>`: the duration of the repeat/phase, in seconds.
-//! - `<e>`: the total elapsed seconds since the starting of the program.
-//! - `<o>`: the total key-value operations executed by all worker threads in the repeat/phase.
-//! - `<t>`: followed by the throughput in million operations per second of the repeat/phase.
-//!
-//! ### Throughput + Latency Output (when `latency` is `true`)
-//!
-//! When latency measurement is enabled, the latency metrics shall be printed at the end of each
-//! benchmark. It is not shown after each repeat, because unlike throughput which is a singleton
-//! value at a given time, latency is a set of values and it usually matters only when we aggregate
-//! a lot of them. The output format in this case is generally the same as throughput-only
-//! measurements, but the `finish` line has extra output like the following:
-//!
-//! ```txt
-//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00
-//! ```
-//!
-//! The extra output on the last line has a format of:
-//!
-//! ```txt
-//! min_us <i> max_us <a> avg_us <v> p50_us <m> p95_us <n> p99_us <p> p999_us <t>
-//! ```
-//!
-//! Where (all units are microseconds):
-//!
-//! - `<i>`: minimum latency
-//! - `<a>`: maximum latency
-//! - `<v>`: mean latency
-//! - `<m>`: median latency (50% percentile)
-//! - `<n>`: P95 latency
-//! - `<p>`: P99 latency
-//! - `<t>`: P999 latency (99.9%)
-//!
-//! ### Throughput + Latency + Latency CDF Mode (when both `latency` and `cdf` are `true`)
-//!
-//! When `cdf` is enabled, the latency CDF data will be printed at the end of the same line as the
-//! latency metrics above. In that case, the output will be like the following:
-//!
-//! ```txt
-//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
-//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
-//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
-//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00 cdf_us percentile ...
-//! ```
-//! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
-//! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
-//! printed as a tuple of `<us> <percentile>` where `<us>` is the latency in microseconds and
-//! `<percentile>` is the percentile of the accumulated operations with latency higher than between
-//! `<ns> - 1` and `<ns>`, inclusively, ranging from 0 to 100 (two digit precision).
-//! There can be arbitrary number of tuples. The output ends when the maximum recorded latency is
-//! reached.
-//!
-//! An example of the CDF data will look like:
-//!
-//! ```txt
-//! cdf_us percentile 1 0.00 2 0.00 3 0.00 4 10.00 5 20.00 6 20.00 ...
-//! ```
-//!
-//! It means there are not data points at 1/2/3 microseconds. At 4 microseconds, there are 10% data
-//! points. At 5 microseconds, there are another 10% data points which makes the total percentile
-//! 20.00. At 6 microseconds, there are no data points so the percentile is still 20.00. Users can
-//! post-process the output and make a smooth CDF plot out of it.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
 use crate::workload::{Workload, WorkloadOpt};
@@ -174,7 +45,12 @@ enum ReportMode {
 /// The configuration of a single benchmark deserialized from a TOML string.
 ///
 /// The fields are optional to ease parsing from TOML, as there can be global parameters that are
-/// set for them.
+/// set for them. The default value will be applied if an option is not specified by both the file
+/// and the global option.
+///
+/// **Note**: If an option not explicitly marked optional and it is not specified by both the file
+/// and the global option, its default value will be applied. If it has no default value, an error
+/// will be raised. The precedence of a value is: file > global (after env overridden) > default.
 #[derive(Deserialize, Clone, Debug)]
 pub struct BenchmarkOpt {
     /// Number of threads that runs this benchmark.
@@ -182,10 +58,11 @@ pub struct BenchmarkOpt {
     /// Default: 1.
     pub threads: Option<usize>,
 
-    /// How many times this benchmark will be repeated. This option is useful when user would like
-    /// to plot the performance trend over time in the same benchmark. For example, setting this
-    /// option to 100 with one second timeout for each repeat can provide 100 data points over a
-    /// 100 second period.
+    /// How many times this benchmark will be repeated.
+    ///
+    /// This option is useful when user would like to plot the performance trend over time in the
+    /// same benchmark. For example, setting this option to 100 with one second timeout for each
+    /// repeat can provide 100 data points over a 100 second period.
     ///
     /// Default: 1.
     pub repeat: Option<usize>,
@@ -194,23 +71,29 @@ pub struct BenchmarkOpt {
     /// option will be ignored.
     ///
     /// Note: see `ops`.
+    ///
+    /// *This value is optional.*
     pub timeout: Option<f32>,
 
     /// How many operations each worker will execute. Only used if `timeout` is not given.
     ///
     /// Note: if both `timeout` and `ops` are not given, the run is only stopped when all possible
     /// keys are generated.
+    ///
+    /// *This value is optional.*
     pub ops: Option<u64>,
 
-    /// Report mode:
+    /// Report mode.
     ///
     /// - "hidden": not reported.
     /// - "repeat": after each repeat, the metrics for that repeat is printed.
     /// - "finish": after all repeats are finished, the metrics of the whole phase is printed.
     /// - "all": equals to "repeat" + "finish".
+    ///
+    /// Default: "all".
     pub report: Option<String>,
 
-    /// Max depth of queue for each worker. Only useful with [`AsyncKVMap`].
+    /// Max depth of queue for each worker (only used with async stores).
     ///
     /// When the pending requests are less than `qd`, the worker will not attempt to get more
     /// responses.
@@ -218,7 +101,7 @@ pub struct BenchmarkOpt {
     /// Default: 1.
     pub qd: Option<usize>,
 
-    /// Batch size for each request. Only useful with [`AsyncKVMap`].
+    /// Batch size for each request (only used with async stores).
     ///
     /// Default: 1.
     pub batch: Option<usize>,
@@ -368,8 +251,8 @@ impl Benchmark {
 
 /// The global options that go to the `[global]` section.
 ///
-/// They will override missing fields in each `[[benchmark]]` section, if the corresponding option
-/// is missing. For the usage of each option, please refer to [`BenchmarkOpt`].
+/// They will override the unspecified fields in each `[[benchmark]]` section with the same name.
+/// For the usage of each option, please refer to [`BenchmarkOpt`].
 #[derive(Deserialize, Clone, Debug)]
 pub struct GlobalOpt {
     // benchmark

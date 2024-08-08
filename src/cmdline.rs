@@ -120,8 +120,7 @@ fn list_cli() {
 /// ```
 ///
 /// Where `STORE_CONFIG` and `BENCH_CONFIG` are the paths to the key-value store and benchmark
-/// configuration files, respectively. For their format, you can refer to the documentations of
-/// [`crate::stores`] and [`crate::bench`].
+/// configuration files, respectively.
 ///
 /// ### Server mode
 ///
@@ -131,8 +130,7 @@ fn list_cli() {
 /// kvbench server -s <STORE_CONFIG> -a <HOST> -p <PORT> -n <WORKERS>
 /// ```
 ///
-/// Where `STORE_CONFIG` is the path of the key-value store configuration file. Its format is
-/// documented in [`crate::stores`].
+/// Where `STORE_CONFIG` is the path of the key-value store configuration file.
 ///
 /// The default `HOST` and `PORT` are `0.0.0.0` and `9000`. By default, the server will spawn one
 /// worker thread only for incoming connections. You can adjust the number of worker threads by

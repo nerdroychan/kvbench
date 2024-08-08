@@ -3,30 +3,188 @@
 //! A benchmark framework designed for testing key-value stores with easily customizable
 //! workloads.
 //!
-//! With `kvbench`, you can define the details of a benchmark using the TOML format, such as the
-//! proportions of mixed operations, the key access pattern, and key space size, just to name a
-//! few. In addition to regular single-process benchmarks, `kvbench` also integrates a key-value
-//! client/server implementation that works with a dedicated server thread/machine.
+//! Key features:
 //!
-//! You can also incorporate `kvbench` into your own key-value store implementations and run it
-//! against the built-in stores. All you need is implementing the [`KVMap`] or the [`AsyncKVMap`]
-//! trait, depending on the type of the store. After registering your store, simply reuse the
-//! exported [`cmdline()`] in your `main` function and it will work seamlessly with your own store.
+//! 1. Flexible and ergonomic control over benchmark specifications using TOML configuration files.
+//! 2. Collecting diverse metrics, including throughput, latency (w/ CDF), and rate-limited latency.
+//! 3. One-shot execution of multiple benchmark steps with different properties.
+//! 4. Various built-in key-value stores in place as well as a client/server implementation.
+//! 5. Highly extensible and can be seamlessly integrated into your own store.
 //!
-//! A few key design choices include:
+//! # Benchmark Configuration
 //!
-//! - Each key-value store exclusively stores a single type of key/value pair: variable-sized byte
-//! arrays represented as [`u8`] slices on the heap. No generics over the key's type.
-//! - The key-value store and the benchmark configurations are black boxes. They are created
-//! dynamically from a TOML file, and dynamically dispatched.
-//! - Benchmark functionalities can be reused in users' own crates: new key-value stores can be
-//! dynamically registered without touching the source code of this crate.
+//! A benchmark in kvbench consists of one or more benchmark runs, termed as *phases*.
+//! Phases will be run sequentially following their order in the configuration file.
 //!
-//! More detailed usage could be found in the module-level rustdocs:
+//! A benchmark configuration file is formatted in TOML. It consists of the definition of each
+//! phase in an array named `benchmark`, so the configuration of each phase starts with
+//! `[[benchmark]]`. The file also optionally contains a `[global]` section which will override the
+//! unspecified field in each phase. This can eliminate redundant options in each phase, for
+//! example, when those options are the same across the board.
 //!
-//! - [`mod@bench`] for the config format of a benchmark.
-//! - [`mod@stores`] for the config format of a built-in key-value store.
-//! - [`cmdline()`] for the usage of the default command line interface.
+//! A configuration file generally looks like the following:
+//!
+//! ```toml
+//! [global]
+//! # global options
+//!
+//! [[benchmark]]
+//! # phase 1 configuration
+//!
+//! [[benchmark]]
+//! # phase 2 configuration
+//!
+//! ...
+//! ```
+//! Options in `[global]` section can also be overwritten via environment variables without
+//! modifying the TOML file. For example, if the user needs to override `x` in `[global]`, one can
+//! set the environment variable `global.x` (case insensitive). This is helpful when the user would
+//! like to run different benchmarks when changing only a few options using a shell script.
+//!
+//! **Reference**
+//!
+//! - [`BenchmarkOpt`]: the available options for benchmark phase configuration.
+//! - [`GlobalOpt`]: the available options for global configuration.
+//!
+//! # Key-Value Store Configuration
+//!
+//! In addition to the specification of the benchmark itself, kvbench also requires the
+//! parameters of the key-value store it runs against. Only one key-value store runs at a time.
+//!
+//! The configuration of a key-value store is stored in a dictionary `map`.
+//! A store's configuration file looks like the following:
+//!
+//! ```toml
+//! [map]
+//! name = "..."
+//! # option1 = ...
+//! # option2 = ...
+//!
+//! ...
+//! ```
+//! The field `name` must be given and it should be equal to the name registered by the store.
+//! Other than `name`, all the fields are parsed as a string map and will be passed to the
+//! store's constructor function. The options in `[map]` section can also be overwritten via
+//! environment variables (e.g., setting `map.x` overrides property `x`).
+//!
+//! **Reference**
+//!
+//! - [`mod@stores`]: the available options for built-in stores and how to register new stores.
+//!
+//! # Run a Benchmark
+//!
+//! Once the configuration files of the benchmark along with the key-value store are ready, a
+//! benchmark can be started by using the `bench` mode of the built-in command-line interface.
+//!
+//! **Reference**
+//!
+//! - [`cmdline()`]: the usage of the default command-line interface.
+//!
+//! # Metrics Collection
+//!
+//! Currently, all outputs are in plain text format. This makes the output easy to process using
+//! shell scripts and tools including gnuplot. If there are new data added to the output, it
+//! will be appended at the end of existing entries (but before `cdf` if it exists, see below)
+//! to make sure outputs from old versions can still be processed without changes.
+//!
+//! ## Throughput-only Output (default case)
+//!
+//! When measuring throughput, an output may look like the following:
+//! ```txt
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00
+//! ```
+//!
+//! The general format is:
+//!
+//! ```txt
+//! phase <p> repeat <r> duration <d> elapsed <e> total <o> mops <t>
+//! ```
+//!
+//! Where:
+//!
+//! - `<p>`: phase id.
+//! - `<r>`: repeat id in a phase, or string `finish .`, if the line is the aggregated report
+//! of a whole phase.
+//! - `<d>`: the duration of the repeat/phase, in seconds.
+//! - `<e>`: the total elapsed seconds since the starting of the program.
+//! - `<o>`: the total key-value operations executed by all worker threads in the repeat/phase.
+//! - `<t>`: followed by the throughput in million operations per second of the repeat/phase.
+//!
+//! ## Throughput + Latency Output (when `latency` is `true`)
+//!
+//! When latency measurement is enabled, the latency metrics shall be printed at the end of each
+//! benchmark. It is not shown after each repeat, because unlike throughput which is a singleton
+//! value at a given time, latency is a set of values and it usually matters only when we aggregate
+//! a lot of them. The output format in this case is generally the same as throughput-only
+//! measurements, but the `finish` line has extra output like the following:
+//!
+//! ```txt
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00
+//! ```
+//!
+//! The extra output on the last line has a format of:
+//!
+//! ```txt
+//! min_us <i> max_us <a> avg_us <v> p50_us <m> p95_us <n> p99_us <p> p999_us <t>
+//! ```
+//!
+//! Where (all units are microseconds):
+//!
+//! - `<i>`: minimum latency
+//! - `<a>`: maximum latency
+//! - `<v>`: mean latency
+//! - `<m>`: median latency (50% percentile)
+//! - `<n>`: P95 latency
+//! - `<p>`: P99 latency
+//! - `<t>`: P999 latency (99.9%)
+//!
+//! ## Throughput + Latency + Latency CDF Mode (when both `latency` and `cdf` are `true`)
+//!
+//! When `cdf` is enabled, the latency CDF data will be printed at the end of the same line as the
+//! latency metrics above. In that case, the output will be like the following:
+//!
+//! ```txt
+//! phase 0 repeat 0 duration 1.00 elapsed 1.00 total 1000000 mops 1.00
+//! phase 0 repeat 1 duration 1.00 elapsed 2.00 total 1000000 mops 1.00
+//! phase 0 repeat 2 duration 1.00 elapsed 3.00 total 1000000 mops 1.00
+//! phase 0 finish . duration 1.00 elapsed 3.00 total 3000000 mops 1.00 min_us 0.05 max_us 100.00 avg_us 50.00 p50_us 50.00 p95_us 95.00 p99_us 99.00 p999_us 100.00 cdf_us percentile ...
+//! ```
+//! Since the latency metrics vary a lot between different benchmarks/runs, the number of data
+//! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
+//! printed as a tuple of `<us> <percentile>` where `<us>` is the latency in microseconds and
+//! `<percentile>` is the percentile of the accumulated operations with latency higher than between
+//! `<ns> - 1` and `<ns>`, inclusively, ranging from 0 to 100 (two digit precision).
+//! There can be arbitrary number of tuples. The output ends when the maximum recorded latency is
+//! reached.
+//!
+//! An example of the CDF data will look like:
+//!
+//! ```txt
+//! cdf_us percentile 1 0.00 2 0.00 3 0.00 4 10.00 5 20.00 6 20.00 ...
+//! ```
+//!
+//! It means there are not data points at 1/2/3 microseconds. At 4 microseconds, there are 10% data
+//! points. At 5 microseconds, there are another 10% data points which makes the total percentile
+//! 20.00. At 6 microseconds, there are no data points so the percentile is still 20.00. Users can
+//! post-process the output and make a smooth CDF plot out of it.
+//!
+//! # Server Mode
+//! A key-value client/server implementation is available in kvbench. The server can be backed by
+//! an arbitrary key-value store defined by a TOML file as in a benchmark, and the server can be
+//! started using the `server` mode of the built-in command-line interface.
+//!
+//! To benchmark the server's performance, users can use the built-in client implementation.
+//!
+//! **Reference**
+//!
+//! - [`cmdline()`]: the usage of the default command-line interface.
+//! - [`stores::remote`]: the available options of the key-value store client.
 
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -83,7 +241,7 @@ pub enum Operation {
     Scan { key: Box<[u8]>, n: usize },
 }
 
-/// A request sent by a client to a server.
+/// A request submitted by an asynchronous store.
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug)]
 pub struct Request {
     /// The (usually unique) identifier of the request, or custom data.
@@ -93,7 +251,7 @@ pub struct Request {
     pub op: Operation,
 }
 
-/// A response sent by a server to a client.
+/// A response received by an asynchronous store.
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Debug)]
 pub struct Response {
     /// The `id` of the corresponding request.
@@ -153,14 +311,16 @@ impl AsyncResponder for RefCell<Vec<Response>> {
     }
 }
 
-pub mod bench;
+mod bench;
 mod cmdline;
-pub mod server;
+mod server;
 pub mod stores;
 pub mod thread;
-pub mod workload;
+mod workload;
 
+pub use bench::{BenchmarkOpt, GlobalOpt};
 pub use cmdline::cmdline;
+pub use workload::WorkloadOpt;
 
 pub extern crate inventory;
 pub extern crate toml;

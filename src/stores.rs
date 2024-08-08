@@ -1,27 +1,10 @@
 //! Adapters for built-in and external key-value stores.
 //!
-//! ## Configuration Format
+//! ## Built-in Stores
 //!
-//! The configuration of a key-value store is stored in a dictionary named `map`. Therefore, a
-//! store's configuration file looks like the following:
-//!
-//! ```toml
-//! [map]
-//! name = "..."
-//! # option1 = ...
-//! # option2 = ...
-//!
-//! ...
-//! ```
-//! The field `name` must be given and it should be equal to the name registered by the store.
-//! Other than `name`, all the fields are parsed as a string map and will be hand over to the
-//! constructor of the store's constructor function. For available options other than `name`, one
-//! can refer to the module-level documentation of a specific store.
-//!
-//! Similar to the `[global]` secition of a benchmark, the options in a `[map]` section can also
-//! be overwritten via environment variables.
-//! For example, if the user needs to override `x` in `[map]`, setting the environment variable
-//! `map.x` will get the job done.
+//! The usage of built-in stores can be found in the module-level documentations. Please note that
+//! it may be necessary to enable specific features of the crate to enable a certain built-in
+//! store.
 //!
 //! ## Registering New Stores
 //!

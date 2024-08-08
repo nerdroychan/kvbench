@@ -22,7 +22,7 @@ The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 ## Development
 
-The missing pieces that are currently under active development:
+This project is being actively developed. The following tasks are currently being worked on:
 
 - Read-modify-write (RMW) support.
 - More built-in stores and benchmark parameters.
