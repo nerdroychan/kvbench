@@ -6,7 +6,7 @@ batch = 10
 klen = 8
 vlen = 16
 kmin = 0
-kmax = 1000
+kmax = 10000
 
 [[benchmark]]
 set_perc = 100
@@ -24,3 +24,31 @@ timeout = 0.2
 set_perc = 50
 get_perc = 50
 dist = "uniform"
+
+[[benchmark]]
+set_perc = 100
+kmin = 10000
+kmax = 20000
+repeat = 1
+dist = "shufflep"
+
+[[benchmark]]
+set_perc = 100
+kmin = 20000
+kmax = 30000
+repeat = 1
+dist = "incrementp"
+
+[[benchmark]]
+del_perc = 100
+kmin = 5000
+kmax = 15000
+repeat = 1
+dist = "shufflep"
+
+[[benchmark]]
+del_perc = 100
+kmin = 15000
+kmax = 25000
+repeat = 1
+dist = "incrementp"

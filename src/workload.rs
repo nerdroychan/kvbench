@@ -405,6 +405,7 @@ mod tests {
 
     #[test]
     fn keygen_increment() {
+        // this also checks unaligned key
         let mut rng = rand::thread_rng();
         for len in [3, 8, 16] {
             let mut kgen = KeyGenerator::new_increment(len, 0, 3);

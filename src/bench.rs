@@ -1311,11 +1311,33 @@ mod tests {
         "/presets/benchmarks/example_scan.toml"
     ));
 
-    fn example(map_opt: &str) {
+    fn example(map_opt: &str, check: bool) {
         let _ = env_logger::try_init();
         let opt = map_opt.to_string() + "\n" + EXAMPLE_BENCH;
         let (map, phases) = init(&opt);
         map.bench(&phases);
+        if check {
+            if let BenchKVMap::Regular(m) = map {
+                let mut handle = m.handle();
+                // set 0-30000 and delete 5000-25000
+                for k in 0..5000u64 {
+                    let key = k.to_be_bytes();
+                    assert!(handle.get(&key).is_some());
+                }
+                for k in 5000..25000u64 {
+                    let key = k.to_be_bytes();
+                    assert!(handle.get(&key).is_none());
+                }
+                for k in 25000..30000u64 {
+                    let key = k.to_be_bytes();
+                    assert!(handle.get(&key).is_some());
+                }
+                for k in 30000..50000u64 {
+                    let key = k.to_be_bytes();
+                    assert!(handle.get(&key).is_none());
+                }
+            }
+        }
     }
 
     fn example_scan(map_opt: &str) {
@@ -1331,7 +1353,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null.toml"
         ));
-        example(OPT);
+        example(OPT, false);
     }
 
     #[test]
@@ -1349,7 +1371,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/null_async.toml"
         ));
-        example(OPT);
+        example(OPT, false);
     }
 
     #[test]
@@ -1367,7 +1389,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/mutex_hashmap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1376,7 +1398,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/rwlock_hashmap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1386,7 +1408,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/dashmap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1396,7 +1418,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/contrie.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1406,7 +1428,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/chashmap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1416,7 +1438,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/scchashmap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1426,7 +1448,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/flurry.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1436,7 +1458,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/papaya.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1445,7 +1467,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/mutex_btreemap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1454,7 +1476,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/presets/stores/rwlock_btreemap.toml"
         ));
-        example(OPT);
+        example(OPT, true);
     }
 
     #[test]
@@ -1469,7 +1491,7 @@ mod tests {
             "#,
             tmp_dir.path().to_str().unwrap().to_string()
         );
-        example(&opt);
+        example(&opt, true);
     }
 
     #[test]
