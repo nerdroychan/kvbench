@@ -32,11 +32,11 @@ impl NullMap {
     }
 
     pub fn new_benchkvmap(_opt: &toml::Table) -> BenchKVMap {
-        BenchKVMap::Regular(Box::new(Self::new()))
+        BenchKVMap::Regular(Arc::new(Box::new(Self::new())))
     }
 
     pub fn new_benchkvmap_async(_opt: &toml::Table) -> BenchKVMap {
-        BenchKVMap::Async(Box::new(Self::new()))
+        BenchKVMap::Async(Arc::new(Box::new(Self::new())))
     }
 }
 

@@ -71,7 +71,7 @@ impl MutexHashMap {
 
     pub fn new_benchkvmap(opt: &toml::Table) -> BenchKVMap {
         let opt: MutexHashMapOpt = opt.clone().try_into().unwrap();
-        BenchKVMap::Regular(Box::new(Self::new(&opt)))
+        BenchKVMap::Regular(Arc::new(Box::new(Self::new(&opt))))
     }
 }
 
@@ -137,7 +137,7 @@ impl RwLockHashMap {
 
     pub fn new_benchkvmap(opt: &toml::Table) -> BenchKVMap {
         let opt: RwLockHashMapOpt = opt.clone().try_into().unwrap();
-        BenchKVMap::Regular(Box::new(Self::new(&opt)))
+        BenchKVMap::Regular(Arc::new(Box::new(Self::new(&opt))))
     }
 }
 

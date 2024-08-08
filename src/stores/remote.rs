@@ -43,7 +43,7 @@ impl RemoteMap {
 
     pub fn new_benchkvmap(opt: &toml::Table) -> BenchKVMap {
         let opt: RemoteMapOpt = opt.clone().try_into().unwrap();
-        BenchKVMap::Async(Box::new(Self::new(&opt)))
+        BenchKVMap::Async(Arc::new(Box::new(Self::new(&opt))))
     }
 }
 

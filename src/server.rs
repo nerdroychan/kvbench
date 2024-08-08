@@ -277,7 +277,7 @@ fn server_worker_regular_main(
     events: &mut Events,
     smap: &mut StreamMap,
     handle: &mut Box<dyn KVMapHandle>,
-    thread: &impl Thread,
+    thread: &Box<dyn Thread>,
 ) {
     for (_, connection) in smap.iter_mut() {
         assert!(connection.writer().flush().is_ok());
@@ -307,7 +307,7 @@ fn server_worker_async_main(
     poll: &mut Poll,
     events: &mut Events,
     smap: &mut StreamMap,
-    thread: &impl Thread,
+    thread: &Box<dyn Thread>,
 ) {
     for (_, connection) in smap.iter_mut() {
         let (writer, handle) = connection.handle();
@@ -378,15 +378,15 @@ fn server_worker_common() -> (Events, StreamMap, Poll) {
 }
 
 fn server_worker_regular(
-    map: Arc<Box<impl KVMap + ?Sized>>,
+    map: Arc<Box<dyn KVMap>>,
     worker_id: usize,
     listener: Arc<TcpListener>,
     rx: Receiver<WorkerMsg>,
     txs: Vec<Sender<WorkerMsg>>,
     nr_workers: usize,
     counter: Arc<AtomicUsize>,
-    thread: impl Thread,
 ) {
+    let thread = map.thread();
     thread.pin(worker_id);
 
     let (mut events, mut smap, mut poll) = server_worker_common();
@@ -426,15 +426,15 @@ fn server_worker_regular(
 }
 
 fn server_worker_async(
-    map: Arc<Box<impl AsyncKVMap + ?Sized>>,
+    map: Arc<Box<dyn AsyncKVMap>>,
     worker_id: usize,
     listener: Arc<TcpListener>,
     rx: Receiver<WorkerMsg>,
     txs: Vec<Sender<WorkerMsg>>,
     nr_workers: usize,
     counter: Arc<AtomicUsize>,
-    thread: impl Thread,
 ) {
+    let thread = map.thread();
     thread.pin(worker_id);
 
     let (mut events, mut smap, mut poll) = server_worker_common();
@@ -496,8 +496,8 @@ fn server_mainloop(
     stop_rx: Receiver<()>,
     grace_tx: Sender<()>,
     senders: Vec<Sender<WorkerMsg>>,
-    mut handles: Vec<impl JoinHandle>,
-    thread: impl Thread,
+    mut handles: Vec<Box<dyn JoinHandle>>,
+    thread: Box<dyn Thread>,
 ) {
     loop {
         if let Ok(_) = stop_rx.try_recv() {
@@ -515,18 +515,16 @@ fn server_mainloop(
     assert!(grace_tx.send(()).is_ok());
 }
 
-/// The real server function for [`KVMap`].
-///
-/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
-pub fn server_regular(
-    map: Arc<Box<impl KVMap + ?Sized>>,
+pub(crate) fn server_regular(
+    map: Arc<Box<dyn KVMap>>,
     host: &str,
     port: &str,
     nr_workers: usize,
     stop_rx: Receiver<()>,
     grace_tx: Sender<()>,
-    thread: impl Thread,
 ) {
+    let thread = map.thread();
+
     let (listener, senders, mut receivers, counter) = server_common(host, port, nr_workers);
 
     let mut handles = Vec::new();
@@ -537,37 +535,25 @@ pub fn server_regular(
         let rx = receivers.pop().unwrap(); // guaranteed to succeed
         let nr_workers = nr_workers.clone();
         let counter = counter.clone();
-        let worker_thread = thread.clone();
-        let handle = thread.spawn(move || {
-            server_worker_regular(
-                map,
-                i,
-                listener,
-                rx,
-                txs,
-                nr_workers,
-                counter,
-                worker_thread,
-            );
-        });
+        let handle = thread.spawn(Box::new(move || {
+            server_worker_regular(map, i, listener, rx, txs, nr_workers, counter);
+        }));
         handles.push(handle);
     }
 
     server_mainloop(stop_rx, grace_tx, senders, handles, thread);
 }
 
-/// The real server function for [`AsyncKVMap`].
-///
-/// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
-pub fn server_async(
-    map: Arc<Box<impl AsyncKVMap + ?Sized>>,
+pub(crate) fn server_async(
+    map: Arc<Box<dyn AsyncKVMap>>,
     host: &str,
     port: &str,
     nr_workers: usize,
     stop_rx: Receiver<()>,
     grace_tx: Sender<()>,
-    thread: impl Thread,
 ) {
+    let thread = map.thread();
+
     let (listener, senders, mut receivers, counter) = server_common(host, port, nr_workers);
 
     let mut handles = Vec::new();
@@ -578,19 +564,9 @@ pub fn server_async(
         let rx = receivers.pop().unwrap(); // guaranteed to succeed
         let nr_workers = nr_workers.clone();
         let counter = counter.clone();
-        let worker_thread = thread.clone();
-        let handle = thread.spawn(move || {
-            server_worker_async(
-                map,
-                i,
-                listener,
-                rx,
-                txs,
-                nr_workers,
-                counter,
-                worker_thread,
-            );
-        });
+        let handle = thread.spawn(Box::new(move || {
+            server_worker_async(map, i, listener, rx, txs, nr_workers, counter);
+        }));
         handles.push(handle);
     }
 
@@ -718,7 +694,7 @@ struct ServerMapOpt {
     map: BenchKVMapOpt,
 }
 
-pub fn init(text: &str) -> BenchKVMap {
+pub(crate) fn init(text: &str) -> BenchKVMap {
     let opt: ServerMapOpt = Figment::new()
         .merge(Toml::string(&text))
         .merge(Env::raw())
@@ -754,14 +730,9 @@ mod tests {
         let (host, port) = (host.to_string(), port.to_string());
         let (stop_tx, stop_rx) = channel();
         let (grace_tx, grace_rx) = channel();
-        let _ = std::thread::spawn(move || match map {
-            BenchKVMap::Regular(map) => {
-                map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-            }
-            BenchKVMap::Async(map) => {
-                map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-            }
-        });
+        let _ = std::thread::spawn(Box::new(move || {
+            map.server(&host, &port, nr_workers, stop_rx, grace_tx);
+        }));
         std::thread::sleep(Duration::from_millis(1000));
         (stop_tx, grace_rx)
     }
@@ -789,68 +760,68 @@ mod tests {
     #[test]
     fn simple_mutex_hashmap() {
         let opt = hashmap::MutexHashMapOpt { shards: 512 };
-        let map = BenchKVMap::Regular(Box::new(hashmap::MutexHashMap::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(hashmap::MutexHashMap::new(&opt))));
         simple(map);
     }
 
     #[test]
     fn simple_rwlock_hashmap() {
         let opt = hashmap::RwLockHashMapOpt { shards: 512 };
-        let map = BenchKVMap::Regular(Box::new(hashmap::RwLockHashMap::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(hashmap::RwLockHashMap::new(&opt))));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "dashmap")]
     fn simple_dashmap() {
-        let map = BenchKVMap::Regular(Box::new(dashmap::DashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(dashmap::DashMap::new())));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "contrie")]
     fn simple_contrie() {
-        let map = BenchKVMap::Regular(Box::new(contrie::Contrie::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(contrie::Contrie::new())));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "chashmap")]
     fn simple_chashmap() {
-        let map = BenchKVMap::Regular(Box::new(chashmap::CHashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(chashmap::CHashMap::new())));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "scc")]
     fn simple_scchashmap() {
-        let map = BenchKVMap::Regular(Box::new(scc::SccHashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(scc::SccHashMap::new())));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "flurry")]
     fn simple_flurry() {
-        let map = BenchKVMap::Regular(Box::new(flurry::Flurry::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(flurry::Flurry::new())));
         simple(map);
     }
 
     #[test]
     #[cfg(feature = "papaya")]
     fn simple_papaya() {
-        let map = BenchKVMap::Regular(Box::new(papaya::Papaya::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(papaya::Papaya::new())));
         simple(map);
     }
 
     #[test]
     fn simple_mutex_btreemap() {
-        let map = BenchKVMap::Regular(Box::new(btreemap::MutexBTreeMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(btreemap::MutexBTreeMap::new())));
         simple(map);
     }
 
     #[test]
     fn simple_rwlock_btreemap() {
-        let map = BenchKVMap::Regular(Box::new(btreemap::RwLockBTreeMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(btreemap::RwLockBTreeMap::new())));
         simple(map);
     }
 
@@ -861,7 +832,7 @@ mod tests {
         let opt = rocksdb::RocksDBOpt {
             path: tmp_dir.path().to_str().unwrap().to_string(),
         };
-        let map = BenchKVMap::Regular(Box::new(rocksdb::RocksDB::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(rocksdb::RocksDB::new(&opt))));
         simple(map);
     }
 
@@ -954,68 +925,68 @@ mod tests {
     #[test]
     fn batch_mutex_hashmap() {
         let opt = hashmap::MutexHashMapOpt { shards: 512 };
-        let map = BenchKVMap::Regular(Box::new(hashmap::MutexHashMap::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(hashmap::MutexHashMap::new(&opt))));
         batch(map);
     }
 
     #[test]
     fn batch_rwlock_hashmap() {
         let opt = hashmap::RwLockHashMapOpt { shards: 512 };
-        let map = BenchKVMap::Regular(Box::new(hashmap::RwLockHashMap::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(hashmap::RwLockHashMap::new(&opt))));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "dashmap")]
     fn batch_dashmap() {
-        let map = BenchKVMap::Regular(Box::new(dashmap::DashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(dashmap::DashMap::new())));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "contrie")]
     fn batch_contrie() {
-        let map = BenchKVMap::Regular(Box::new(contrie::Contrie::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(contrie::Contrie::new())));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "chashmap")]
     fn batch_chashmap() {
-        let map = BenchKVMap::Regular(Box::new(chashmap::CHashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(chashmap::CHashMap::new())));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "scc")]
     fn batch_scchashmap() {
-        let map = BenchKVMap::Regular(Box::new(scc::SccHashMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(scc::SccHashMap::new())));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "flurry")]
     fn batch_flurry() {
-        let map = BenchKVMap::Regular(Box::new(flurry::Flurry::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(flurry::Flurry::new())));
         batch(map);
     }
 
     #[test]
     #[cfg(feature = "papaya")]
     fn batch_papaya() {
-        let map = BenchKVMap::Regular(Box::new(papaya::Papaya::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(papaya::Papaya::new())));
         batch(map);
     }
 
     #[test]
     fn batch_mutex_btreemap() {
-        let map = BenchKVMap::Regular(Box::new(btreemap::MutexBTreeMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(btreemap::MutexBTreeMap::new())));
         batch(map);
     }
 
     #[test]
     fn batch_rwlock_btreemap() {
-        let map = BenchKVMap::Regular(Box::new(btreemap::RwLockBTreeMap::new()));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(btreemap::RwLockBTreeMap::new())));
         batch(map);
     }
 
@@ -1026,7 +997,7 @@ mod tests {
         let opt = rocksdb::RocksDBOpt {
             path: tmp_dir.path().to_str().unwrap().to_string(),
         };
-        let map = BenchKVMap::Regular(Box::new(rocksdb::RocksDB::new(&opt)));
+        let map = BenchKVMap::Regular(Arc::new(Box::new(rocksdb::RocksDB::new(&opt))));
         batch(map);
     }
 }

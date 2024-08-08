@@ -1,4 +1,4 @@
-use crate::stores::{BenchKVMap, Registry};
+use crate::stores::Registry;
 use clap::ValueHint::FilePath;
 use clap::{Args, Parser, Subcommand};
 use log::debug;
@@ -83,14 +83,7 @@ fn server_cli(args: &ServerArgs) {
     })
     .expect("Error setting Ctrl-C handler for server");
 
-    match map {
-        BenchKVMap::Regular(map) => {
-            map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-        }
-        BenchKVMap::Async(map) => {
-            map.server(&host, &port, nr_workers, stop_rx, grace_tx);
-        }
-    }
+    map.server(&host, &port, nr_workers, stop_rx, grace_tx);
 
     assert!(grace_rx.recv().is_ok());
     debug!("All server threads have been shut down gracefully, exit");

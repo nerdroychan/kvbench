@@ -12,13 +12,11 @@
 //! benchmark code, which does not use any return values.
 
 pub trait JoinHandle {
-    fn join(self);
+    fn join(self: Box<Self>);
 }
 
-pub trait Thread: Send + Clone + 'static {
-    type JoinHandle: JoinHandle;
-
-    fn spawn(&self, f: impl FnOnce() + Send + 'static) -> Self::JoinHandle;
+pub trait Thread {
+    fn spawn(&self, f: Box<dyn FnOnce() + Send>) -> Box<dyn JoinHandle>;
 
     fn yield_now(&self);
 
@@ -28,17 +26,19 @@ pub trait Thread: Send + Clone + 'static {
 #[derive(Clone)]
 pub(crate) struct DefaultThread;
 
-impl JoinHandle for std::thread::JoinHandle<()> {
-    fn join(self) {
-        let _ = self.join();
+pub(crate) struct DefaultJoinHandle(std::thread::JoinHandle<()>);
+
+impl JoinHandle for DefaultJoinHandle {
+    fn join(self: Box<Self>) {
+        let handle = self.0;
+        assert!(handle.join().is_ok());
     }
 }
 
 impl Thread for DefaultThread {
-    type JoinHandle = std::thread::JoinHandle<()>;
-
-    fn spawn(&self, f: impl FnOnce() + Send + 'static) -> Self::JoinHandle {
-        std::thread::spawn(f)
+    fn spawn(&self, f: Box<dyn FnOnce() + Send>) -> Box<dyn JoinHandle> {
+        let handle = std::thread::spawn(f);
+        Box::new(DefaultJoinHandle(handle))
     }
 
     fn yield_now(&self) {

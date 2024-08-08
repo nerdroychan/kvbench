@@ -21,7 +21,7 @@ impl Contrie {
     }
 
     pub fn new_benchkvmap(_opt: &toml::Table) -> BenchKVMap {
-        BenchKVMap::Regular(Box::new(Self::new()))
+        BenchKVMap::Regular(Arc::new(Box::new(Self::new())))
     }
 }
 

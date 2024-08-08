@@ -31,7 +31,6 @@
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
 /// A synchronous, thread-safe key-value store.
@@ -44,34 +43,8 @@ pub trait KVMap: Send + Sync + 'static {
     /// For most stores, this can just be done using an Arc.
     fn handle(&self) -> Box<dyn KVMapHandle>;
 
-    /// The main bench method.
-    ///
-    /// Users usually don't need to manually implement this method unless the implementer needs
-    /// custom thread spawn-join functions. If one would like to do so, it is needed to explicitly
-    /// declare a new [`thread::Thread`] object and pass it to [`bench::bench_regular`].
-    fn bench(self: Box<Self>, phases: &Vec<Arc<crate::bench::Benchmark>>) {
-        let map = Arc::new(self);
-        let thread = crate::thread::DefaultThread;
-        crate::bench::bench_regular(map, phases, thread);
-    }
-
-    /// Start the main loop of KV server while using this map as the backend.
-    ///
-    /// There is no need to manually implement this method unless the implementer needs custom
-    /// thread spawn-join functions. If one would like to manually implement this method, it is
-    /// needed to explicitly declare a new [`thread::Thread`] object and pass it to
-    /// [`server::server_regular`].
-    fn server(
-        self: Box<Self>,
-        host: &str,
-        port: &str,
-        nr_workers: usize,
-        stop_rx: Receiver<()>,
-        grace_tx: Sender<()>,
-    ) {
-        let map = Arc::new(self);
-        let thread = crate::thread::DefaultThread;
-        crate::server::server_regular(map, host, port, nr_workers, stop_rx, grace_tx, thread);
+    fn thread(&self) -> Box<dyn crate::thread::Thread> {
+        Box::new(self::thread::DefaultThread)
     }
 }
 
@@ -150,25 +123,8 @@ pub trait AsyncKVMap: Sync + Send + 'static {
     /// corresponds to a shared `responder` that implements [`AsyncResponder`].
     fn handle(&self, responder: Rc<dyn AsyncResponder>) -> Box<dyn AsyncKVMapHandle>;
 
-    /// Similar to [`KVMap::bench`], but calls [`bench::bench_async`] instead.
-    fn bench(self: Box<Self>, phases: &Vec<Arc<crate::bench::Benchmark>>) {
-        let map = Arc::new(self);
-        let thread = crate::thread::DefaultThread;
-        crate::bench::bench_async(map, phases, thread);
-    }
-
-    /// Similar to [`KVMap::server`], but calls [`server::server_async`] instead.
-    fn server(
-        self: Box<Self>,
-        host: &str,
-        port: &str,
-        nr_workers: usize,
-        stop_rx: Receiver<()>,
-        grace_tx: Sender<()>,
-    ) {
-        let map = Arc::new(self);
-        let thread = crate::thread::DefaultThread;
-        crate::server::server_async(map, host, port, nr_workers, stop_rx, grace_tx, thread);
+    fn thread(&self) -> Box<dyn crate::thread::Thread> {
+        Box::new(self::thread::DefaultThread)
     }
 }
 

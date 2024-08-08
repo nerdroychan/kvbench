@@ -36,29 +36,49 @@
 //!
 //! The source code of all built-in stores provide good examples on this process.
 
-use crate::bench::Benchmark;
+use crate::bench::{bench_async, bench_regular, Benchmark};
+use crate::server::{server_async, server_regular};
 use crate::*;
 use hashbrown::HashMap;
 use log::debug;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 use toml::Table;
 
 /// A unified enum for a created key-value store that is ready to run.
 pub enum BenchKVMap {
-    Regular(Box<dyn KVMap>),
-    Async(Box<dyn AsyncKVMap>),
+    Regular(Arc<Box<dyn KVMap>>),
+    Async(Arc<Box<dyn AsyncKVMap>>),
 }
 
 impl BenchKVMap {
-    /// Wraps the real `bench` function of the store.
-    pub fn bench(self, phases: &Vec<Arc<Benchmark>>) {
+    pub(crate) fn bench(&self, phases: &Vec<Arc<Benchmark>>) {
         match self {
             BenchKVMap::Regular(map) => {
-                KVMap::bench(map, phases);
+                bench_regular(map.clone(), phases);
             }
             BenchKVMap::Async(map) => {
-                AsyncKVMap::bench(map, phases);
+                bench_async(map.clone(), phases);
             }
         };
+    }
+
+    pub(crate) fn server(
+        &self,
+        host: &str,
+        port: &str,
+        nr_workers: usize,
+        stop_rx: Receiver<()>,
+        grace_tx: Sender<()>,
+    ) {
+        match self {
+            BenchKVMap::Regular(map) => {
+                server_regular(map.clone(), host, port, nr_workers, stop_rx, grace_tx);
+            }
+            BenchKVMap::Async(map) => {
+                server_async(map.clone(), host, port, nr_workers, stop_rx, grace_tx);
+            }
+        }
     }
 }
 

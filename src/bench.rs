@@ -130,7 +130,6 @@
 //! post-process the output and make a smooth CDF plot out of it.
 
 use crate::stores::{BenchKVMap, BenchKVMapOpt};
-use crate::thread::{JoinHandle, Thread};
 use crate::workload::{Workload, WorkloadOpt};
 use crate::*;
 use figment::providers::{Env, Format, Toml};
@@ -301,7 +300,7 @@ impl BenchmarkOpt {
 
 /// The configuration of a benchmark, parsed from user's input.
 #[derive(Debug, PartialEq)]
-pub struct Benchmark {
+pub(crate) struct Benchmark {
     threads: usize,
     repeat: usize,
     qd: usize,
@@ -470,7 +469,7 @@ struct BenchmarkGroupOpt {
 
 // {{{ bencher
 
-pub fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
+pub(crate) fn init(text: &str) -> (BenchKVMap, Vec<Arc<Benchmark>>) {
     let opt: BenchmarkGroupOpt = Figment::new()
         .merge(Toml::string(text))
         .merge(Env::raw())
@@ -779,11 +778,9 @@ impl RateLimiter {
     }
 }
 
-fn bench_worker_regular(
-    map: Arc<Box<impl KVMap + ?Sized>>,
-    context: WorkerContext,
-    thread: impl Thread,
-) {
+fn bench_worker_regular(map: Arc<Box<dyn KVMap>>, context: WorkerContext) {
+    let thread = map.thread();
+
     let WorkerContext {
         benchmark,
         since,
@@ -894,11 +891,9 @@ fn bench_worker_regular(
     }
 }
 
-fn bench_worker_async(
-    map: Arc<Box<impl AsyncKVMap + ?Sized>>,
-    context: WorkerContext,
-    thread: impl Thread,
-) {
+fn bench_worker_async(map: Arc<Box<dyn AsyncKVMap>>, context: WorkerContext) {
+    let thread = map.thread();
+
     let WorkerContext {
         benchmark,
         since,
@@ -1046,12 +1041,12 @@ fn bench_worker_async(
 }
 
 fn bench_phase_regular(
-    map: Arc<Box<impl KVMap + ?Sized>>,
+    map: Arc<Box<dyn KVMap>>,
     benchmark: Arc<Benchmark>,
     phase: usize,
     since: Arc<Instant>,
-    thread: &impl Thread,
 ) {
+    let thread = map.thread();
     let barrier = Arc::new(Barrier::new(benchmark.threads.try_into().unwrap()));
     let measurements: Vec<Arc<Measurement>> = (0..benchmark.threads)
         .map(|_| Arc::new(Measurement::new(benchmark.repeat)))
@@ -1070,10 +1065,9 @@ fn bench_phase_regular(
             since: *since,
             thread_info,
         };
-        let worker_thread = thread.clone();
-        let handle = thread.spawn(move || {
-            bench_worker_regular(map, context, worker_thread);
-        });
+        let handle = thread.spawn(Box::new(move || {
+            bench_worker_regular(map, context);
+        }));
         handles.push(handle);
     }
 
@@ -1086,12 +1080,12 @@ fn bench_phase_regular(
 }
 
 fn bench_phase_async(
-    map: Arc<Box<impl AsyncKVMap + ?Sized>>,
+    map: Arc<Box<dyn AsyncKVMap>>,
     benchmark: Arc<Benchmark>,
     phase: usize,
     since: Arc<Instant>,
-    thread: &impl Thread,
 ) {
+    let thread = map.thread();
     let barrier = Arc::new(Barrier::new((benchmark.threads).try_into().unwrap()));
     let measurements: Vec<Arc<Measurement>> = (0..benchmark.threads)
         .map(|_| Arc::new(Measurement::new(benchmark.repeat)))
@@ -1110,10 +1104,9 @@ fn bench_phase_async(
             since: *since,
             thread_info,
         };
-        let worker_thread = thread.clone();
-        let handle = thread.spawn(move || {
-            bench_worker_async(map, context, worker_thread);
-        });
+        let handle = thread.spawn(Box::new(move || {
+            bench_worker_async(map, context);
+        }));
         handles.push(handle);
     }
 
@@ -1127,30 +1120,22 @@ fn bench_phase_async(
 /// The real benchmark function for [`KVMap`].
 ///
 /// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
-pub fn bench_regular(
-    map: Arc<Box<impl KVMap + ?Sized>>,
-    phases: &Vec<Arc<Benchmark>>,
-    thread: impl Thread,
-) {
+pub(crate) fn bench_regular(map: Arc<Box<dyn KVMap>>, phases: &Vec<Arc<Benchmark>>) {
     debug!("Running regular bencher");
     let start = Arc::new(Instant::now());
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_regular(map.clone(), p.clone(), i, start.clone(), &thread);
+        bench_phase_regular(map.clone(), p.clone(), i, start.clone());
     }
 }
 
 /// The real benchmark function for [`AsyncKVMap`].
 ///
 /// **You may not need to check this if it is OK to run benchmarks with [`std::thread`].**
-pub fn bench_async(
-    map: Arc<Box<impl AsyncKVMap + ?Sized>>,
-    phases: &Vec<Arc<Benchmark>>,
-    thread: impl Thread,
-) {
+pub(crate) fn bench_async(map: Arc<Box<dyn AsyncKVMap>>, phases: &Vec<Arc<Benchmark>>) {
     debug!("Running async bencher");
     let start = Arc::new(Instant::now());
     for (i, p) in phases.iter().enumerate() {
-        bench_phase_async(map.clone(), p.clone(), i, start.clone(), &thread);
+        bench_phase_async(map.clone(), p.clone(), i, start.clone());
     }
 }
 

@@ -33,7 +33,7 @@ impl RocksDB {
 
     pub fn new_benchkvmap(opt: &toml::Table) -> BenchKVMap {
         let opt: RocksDBOpt = opt.clone().try_into().unwrap();
-        BenchKVMap::Regular(Box::new(Self::new(&opt)))
+        BenchKVMap::Regular(Arc::new(Box::new(Self::new(&opt))))
     }
 }
 
