@@ -159,7 +159,7 @@
 //! points of the CDF is different. Therefore, it is printed at the end of the output only. It is
 //! printed as a tuple of `<us> <percentile>` where `<us>` is the latency in microseconds and
 //! `<percentile>` is the percentile of the accumulated operations with latency higher than between
-//! `<ns> - 1` and `<ns>`, inclusively, ranging from 0 to 100 (two digit precision).
+//! `<us> - 1` and `<us>`, inclusively, ranging from 0 to 100 (two digit precision).
 //! There can be arbitrary number of tuples. The output ends when the maximum recorded latency is
 //! reached.
 //!
