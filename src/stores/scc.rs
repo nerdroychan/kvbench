@@ -34,9 +34,7 @@ impl KVMap for SccHashMap {
 
 impl KVMapHandle for SccHashMap {
     fn set(&mut self, key: &[u8], value: &[u8]) {
-        if let Err(_) = self.0.insert(key.into(), value.into()) {
-            assert!(self.0.update(key, |_, v| *v = value.into()).is_some());
-        }
+        let _result = self.0.insert(key.into(), value.into());
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
