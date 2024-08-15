@@ -40,10 +40,7 @@ impl KVMapHandle for SccHashMap {
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
-        match self.0.get(key) {
-            Some(r) => Some(r.clone()),
-            None => None,
-        }
+        self.0.read(key, |_, r| r.clone())
     }
 
     fn delete(&mut self, key: &[u8]) {
