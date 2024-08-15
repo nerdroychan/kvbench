@@ -34,16 +34,18 @@ impl KVMap for SccHashMap {
 
 impl KVMapHandle for SccHashMap {
     fn set(&mut self, key: &[u8], value: &[u8]) {
-        if let Err(_) = self.0.insert(key.into(), value.into()) {
-            assert!(self.0.update(key, |_, v| *v = value.into()).is_some());
+        match self.0.entry(key.into()) {
+            scc::hash_map::Entry::Occupied(mut o) => {
+                *o.get_mut() = value.into();
+            }
+            scc::hash_map::Entry::Vacant(v) => {
+                v.insert_entry(value.into());
+            }
         }
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
-        match self.0.get(key) {
-            Some(r) => Some(r.clone()),
-            None => None,
-        }
+        self.0.read(key, |_, r| r.clone())
     }
 
     fn delete(&mut self, key: &[u8]) {
