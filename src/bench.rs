@@ -706,6 +706,12 @@ fn bench_worker_regular(map: Arc<Box<dyn KVMap>>, context: WorkerContext) {
 
         // start benchmark
         loop {
+            // check if we need to break
+            if bench_repeat_should_break(&benchmark.len, *counter, start, &mut workload) {
+                workload.reset();
+                break;
+            }
+
             let op = workload.next(&mut rng);
             let op_start = latency_tick();
             match op {
@@ -730,12 +736,6 @@ fn bench_worker_regular(map: Arc<Box<dyn KVMap>>, context: WorkerContext) {
 
             if let Some(r) = &rate_limiter {
                 r.backoff(*counter);
-            }
-
-            // check if we need to break
-            if bench_repeat_should_break(&benchmark.len, *counter, start, &mut workload) {
-                workload.reset();
-                break;
             }
         }
 
@@ -831,6 +831,11 @@ fn bench_worker_async(map: Arc<Box<dyn AsyncKVMap>>, context: WorkerContext) {
             requests.clear();
             // sample requests
             for _ in 0..benchmark.batch {
+                // stop the batch generation if the repeat is done
+                if bench_repeat_should_break(&benchmark.len, *counter, start, &mut workload) {
+                    break;
+                }
+
                 let op = workload.next(&mut rng);
                 requests.push(Request { id: rid, op });
                 rid += 1;
@@ -838,10 +843,6 @@ fn bench_worker_async(map: Arc<Box<dyn AsyncKVMap>>, context: WorkerContext) {
                 // otherwise the last check may fail because the time check is after a certain
                 // interval, but the mod is never 0
                 *counter += 1;
-                // stop the batch generation if the repeat is done
-                if bench_repeat_should_break(&benchmark.len, *counter, start, &mut workload) {
-                    break;
-                }
                 // if a rate limiter is in place and no further backoff is needed, break early to
                 // send the batch immediately
                 if let Some(r) = &rate_limiter {

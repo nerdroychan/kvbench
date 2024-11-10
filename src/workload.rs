@@ -354,7 +354,7 @@ impl Workload {
     }
 
     pub fn is_exhausted(&self) -> bool {
-        self.kgen.serial == (self.kgen.max - self.kgen.min)
+        self.kgen.serial == self.kgen.keyspace
     }
 }
 
