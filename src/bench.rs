@@ -530,6 +530,10 @@ fn bench_stat_repeat(
     thread_info: (usize, usize),
     measurements: &Vec<Arc<Measurement>>,
 ) {
+    if benchmark.report != ReportMode::Repeat && benchmark.report != ReportMode::All {
+        return;
+    }
+
     assert!(thread_info.0 == 0);
     let mut throughput = 0.0f64;
     let mut total = 0u64;
@@ -551,12 +555,10 @@ fn bench_stat_repeat(
     let duration = (end - start).as_secs_f64();
     let elapsed = (end - since).as_secs_f64();
 
-    if benchmark.report == ReportMode::Repeat || benchmark.report == ReportMode::All {
-        println!(
-            "phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
-            phase, repeat, duration, elapsed, total, throughput,
-        );
-    }
+    println!(
+        "phase {} repeat {} duration {:.2} elapsed {:.2} total {} mops {:.2}",
+        phase, repeat, duration, elapsed, total, throughput,
+    );
 }
 
 fn bench_stat_final(
@@ -568,6 +570,10 @@ fn bench_stat_final(
     thread_info: (usize, usize),
     measurements: &Vec<Arc<Measurement>>,
 ) {
+    if benchmark.report != ReportMode::Finish && benchmark.report != ReportMode::All {
+        return;
+    }
+
     assert!(thread_info.0 == 0);
     let mut total = 0u64;
     let mut latency = Latency::new();
@@ -584,45 +590,43 @@ fn bench_stat_final(
 
     let throughput = total as f64 / duration / 1_000_000.0;
 
-    if benchmark.report == ReportMode::Finish || benchmark.report == ReportMode::All {
+    print!(
+        "phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
+        phase, duration, elapsed, total, throughput,
+    );
+    if benchmark.latency {
+        print!(" ");
+        assert_eq!(total, latency.hdr.len());
+        let hdr = &latency.hdr;
         print!(
-            "phase {} finish . duration {:.2} elapsed {:.2} total {} mops {:.2}",
-            phase, duration, elapsed, total, throughput,
+            "min_us {:.2} max_us {:.2} avg_us {:.2} \
+             p50_us {:.2} p95_us {:.2} p99_us {:.2} p999_us {:.2}",
+            hdr.min() as f64 / 1000.0,
+            hdr.max() as f64 / 1000.0,
+            hdr.mean() / 1000.0,
+            hdr.value_at_quantile(0.50) as f64 / 1000.0,
+            hdr.value_at_quantile(0.95) as f64 / 1000.0,
+            hdr.value_at_quantile(0.99) as f64 / 1000.0,
+            hdr.value_at_quantile(0.999) as f64 / 1000.0,
         );
-        if benchmark.latency {
-            print!(" ");
-            assert_eq!(total, latency.hdr.len());
-            let hdr = &latency.hdr;
-            print!(
-                "min_us {:.2} max_us {:.2} avg_us {:.2} \
-                 p50_us {:.2} p95_us {:.2} p99_us {:.2} p999_us {:.2}",
-                hdr.min() as f64 / 1000.0,
-                hdr.max() as f64 / 1000.0,
-                hdr.mean() / 1000.0,
-                hdr.value_at_quantile(0.50) as f64 / 1000.0,
-                hdr.value_at_quantile(0.95) as f64 / 1000.0,
-                hdr.value_at_quantile(0.99) as f64 / 1000.0,
-                hdr.value_at_quantile(0.999) as f64 / 1000.0,
-            );
-            if benchmark.cdf {
-                print!(" cdf_us percentile ");
-                let mut cdf = 0;
-                for v in latency.hdr.iter_linear(1000) {
-                    let ns = v.value_iterated_to();
-                    let us = (ns + 1) / 1000;
-                    cdf += v.count_since_last_iteration();
-                    print!("{} {:.2}", us, cdf as f64 * 100.0 / total as f64);
-                    if ns >= hdr.max() {
-                        break;
-                    }
-                    print!(" ");
+        if benchmark.cdf {
+            print!(" cdf_us percentile ");
+            let mut cdf = 0;
+            for v in latency.hdr.iter_linear(1000) {
+                let ns = v.value_iterated_to();
+                let us = (ns + 1) / 1000;
+                cdf += v.count_since_last_iteration();
+                print!("{} {:.2}", us, cdf as f64 * 100.0 / total as f64);
+                if ns >= hdr.max() {
+                    break;
                 }
-                assert_eq!(cdf, total);
+                print!(" ");
             }
+            assert_eq!(cdf, total);
         }
-
-        println!();
     }
+
+    println!();
 }
 
 /// A simple rate limiter when the benchmark needs to limit its throughput.
