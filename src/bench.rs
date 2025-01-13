@@ -843,13 +843,6 @@ fn bench_worker_async(map: Arc<Box<dyn AsyncKVMap>>, context: WorkerContext) {
                 // otherwise the last check may fail because the time check is after a certain
                 // interval, but the mod is never 0
                 *counter += 1;
-                // if a rate limiter is in place and no further backoff is needed, break early to
-                // send the batch immediately
-                if let Some(r) = &rate_limiter {
-                    if r.try_backoff(*counter) {
-                        break;
-                    }
-                }
             }
 
             // now we have a batch, send it all, whatever its size is
