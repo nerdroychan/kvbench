@@ -1,6 +1,6 @@
 [package]
 name = "kvbench"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Chen Chen <mail@roychan.org>"]
 description = "A key-value store benchmark framework with customizable workloads"
 edition = "2021"
@@ -30,9 +30,9 @@ flurry = { version = "0.5.2", optional = true }
 hashbrown = "0.14.5"
 hdrhistogram = "7.5.4"
 inventory = "0.3.17"
-log = "0.4.22"
+log = "0.4.25"
 mio = { version = "1.0.3", features = ["net", "os-poll"] }
-papaya = { version = "0.1.7", optional = true }
+papaya = { version = "0.1.8", optional = true }
 parking_lot = "0.12.3"
 quanta = "0.12.5"
 rand = "0.8.5"
