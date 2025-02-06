@@ -37,7 +37,7 @@ quanta = "0.12.5"
 rand = "0.8.5"
 rocksdb = { version = "0.22.0", optional = true }
 rustc-hash = "2.1.1"
-scc = { version = "2.3.2", optional = true }
+scc = { version = "2.3.3", optional = true }
 serde = { version = "1.0.217", features = ["derive"] }
 toml = "0.8.20"
 zipf = "7.0.1"
