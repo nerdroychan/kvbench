@@ -24,17 +24,14 @@
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
 use ::hashbrown::HashMap;
-use ahash::AHasher;
 use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;
-use std::hash::Hasher;
+use std::hash::BuildHasher;
 use std::sync::Arc;
 
 /// Calculate the [`u64`] hash value of a given key using [`AHasher`].
 pub fn hash(key: &[u8]) -> u64 {
-    let mut hasher = AHasher::default();
-    hasher.write(key);
-    u64::from(hasher.finish())
+    rustc_hash::FxBuildHasher.hash_one(key)
 }
 
 pub fn shard(key: &[u8], nr_shards: usize) -> usize {
