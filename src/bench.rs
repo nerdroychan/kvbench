@@ -10,6 +10,7 @@ use hdrhistogram::Histogram;
 use log::debug;
 use parking_lot::Mutex;
 use quanta::Instant;
+use rand::SeedableRng;
 use serde::Deserialize;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -693,7 +694,7 @@ fn bench_worker_regular(map: Arc<Box<dyn KVMap>>, context: WorkerContext) {
     };
 
     let mut handle = map.handle();
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::StdRng::from_entropy();
     let mut workload = Workload::new(&benchmark.wopt, Some(thread_info));
     let start = Instant::now();
 
@@ -810,7 +811,7 @@ fn bench_worker_async(map: Arc<Box<dyn AsyncKVMap>>, context: WorkerContext) {
 
     let responder = Rc::new(RefCell::new(Vec::<Response>::new()));
     let mut handle = map.handle(responder.clone());
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::StdRng::from_entropy();
     let mut workload = Workload::new(&benchmark.wopt, Some(thread_info));
     // pending requests is global, as it is not needed to drain all requests after each repeat
     let mut pending = 0usize;
