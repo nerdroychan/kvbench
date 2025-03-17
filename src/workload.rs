@@ -1,11 +1,12 @@
 //! Workload generator.
 
 use crate::Operation;
-use rand::distributions::{Distribution, Uniform, WeightedIndex};
+use rand::distr::{Distribution, Uniform};
 use rand::prelude::SliceRandom;
 use rand::Rng;
+use rand_distr::weighted::WeightedIndex;
+use rand_distr::Zipf;
 use serde::Deserialize;
-use zipf::ZipfDistribution;
 
 /// This is for internal use in the workload mod. It is essentially Operation without
 /// generated keys, values, or other parameters. They are generated based on a Mix defined below.
@@ -48,8 +49,8 @@ enum KeyDistribution {
     Increment,
     Shuffle(Vec<usize>),
     Uniform(Uniform<usize>),
-    Zipfian(ZipfDistribution, usize),
-    ZipfianLatest(ZipfDistribution, usize, usize),
+    Zipfian(Zipf<f64>, usize),
+    ZipfianLatest(Zipf<f64>, usize, usize),
 }
 
 /// Key generator that takes care of synthetic keys based on a distribution. Currently it only
@@ -90,27 +91,26 @@ impl KeyGenerator {
 
     fn new_shuffle(len: usize, min: usize, max: usize) -> Self {
         let mut shuffle = (0..(max - min)).collect::<Vec<usize>>();
-        shuffle.shuffle(&mut rand::thread_rng());
+        shuffle.shuffle(&mut rand::rng());
         let dist = KeyDistribution::Shuffle(shuffle);
         Self::new(len, min, max, dist)
     }
 
     fn new_uniform(len: usize, min: usize, max: usize) -> Self {
-        let dist = KeyDistribution::Uniform(Uniform::new(0, max - min));
+        let dist = KeyDistribution::Uniform(Uniform::new(0, max - min).unwrap());
         Self::new(len, min, max, dist)
     }
 
     fn new_zipfian(len: usize, min: usize, max: usize, theta: f64, hotspot: f64) -> Self {
         let hotspot = (hotspot * (max - min - 1) as f64) as usize; // approx location for discrete keys
-        let dist =
-            KeyDistribution::Zipfian(ZipfDistribution::new(max - min, theta).unwrap(), hotspot);
+        let dist = KeyDistribution::Zipfian(Zipf::new((max - min) as f64, theta).unwrap(), hotspot);
         Self::new(len, min, max, dist)
     }
 
     fn new_zipfian_latest(len: usize, min: usize, max: usize, theta: f64, hotspot: f64) -> Self {
         let hotspot = (hotspot * (max - min - 1) as f64) as usize; // approx location for discrete keys
         let dist = KeyDistribution::ZipfianLatest(
-            ZipfDistribution::new(max - min, theta).unwrap(),
+            Zipf::new((max - min) as f64, theta).unwrap(),
             hotspot,
             0,
         );
@@ -124,11 +124,11 @@ impl KeyGenerator {
             KeyDistribution::Uniform(dist) => dist.sample(rng),
             KeyDistribution::Zipfian(dist, hotspot) => {
                 // zipf starts at 1
-                (dist.sample(rng) - 1 + hotspot) % self.keyspace
+                (dist.sample(rng) as usize - 1 + hotspot) % self.keyspace
             }
             KeyDistribution::ZipfianLatest(dist, hotspot, ref mut latest) => {
                 // just like zipfian, but always store the latest key
-                let sample = dist.sample(rng) - 1;
+                let sample = dist.sample(rng) as usize - 1;
                 *latest = sample;
                 (sample + hotspot) % self.keyspace
             }
@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn mix_one_type_only() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mix = Mix::new(100, 0, 0, 0);
         for _ in 0..100 {
             assert!(matches!(mix.next(&mut rng), OperationType::Set));
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn mix_small_write() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mix = Mix::new(5, 95, 0, 0);
         let mut set = 0;
         #[allow(unused)]
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn keygen_increment() {
         // this also checks unaligned key
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for len in [3, 8, 16] {
             let mut kgen = KeyGenerator::new_increment(len, 0, 3);
             let mut k: Box<[u8]> = (0..len).map(|_| 0u8).collect();
@@ -425,7 +425,7 @@ mod tests {
     fn keygen_shuffle() {
         let start = 117;
         let end = 135423;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut kgen = KeyGenerator::new_shuffle(8, start, end);
         let mut dist: HashSet<Box<[u8]>> = HashSet::new();
         for _ in start..end {
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn keygen_uniform() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
         let mut kgen = KeyGenerator::new_uniform(8, 0, 100);
         // 100 keys, 1m gens so ~10k occurance ea. Bound to 9k to 11k
@@ -461,7 +461,7 @@ mod tests {
 
     #[test]
     fn keygen_zipfian() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
         let mut kgen = KeyGenerator::new_zipfian(8, 0, 10, 1.0, 0.0);
         for _ in 0..1000000 {
@@ -472,14 +472,14 @@ mod tests {
         freq.sort_by_key(|c| std::cmp::Reverse(*c));
         // just some really nonsense checks
         let p1 = freq[0] as f64 / freq[1] as f64;
-        assert!(p1 > 1.9 && p1 < 2.0, "zipf p1: {}", p1);
+        assert!(p1 > 1.9 && p1 < 2.1, "zipf p1: {}", p1);
         let p2 = freq[1] as f64 / freq[2] as f64;
         assert!(p2 > 1.45 && p2 < 1.55, "zipf p2: {}", p2);
     }
 
     #[test]
     fn keygen_zipfian_hotspot() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // hotspot is the middle key
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
@@ -491,7 +491,7 @@ mod tests {
         let mut freq: Vec<(Box<[u8]>, u64)> = dist.iter().map(|e| (e.0.clone(), *e.1)).collect();
         freq.sort_by_key(|c| c.0.clone());
         let p1 = freq[4].1 as f64 / freq[5].1 as f64;
-        assert!(p1 > 1.9 && p1 < 2.0, "zipf p1: {}", p1);
+        assert!(p1 > 1.9 && p1 < 2.1, "zipf p1: {}", p1);
         let p2 = freq[5].1 as f64 / freq[6].1 as f64;
         assert!(p2 > 1.45 && p2 < 1.55, "zipf p2: {}", p2);
 
@@ -505,7 +505,7 @@ mod tests {
         let mut freq: Vec<(Box<[u8]>, u64)> = dist.iter().map(|e| (e.0.clone(), *e.1)).collect();
         freq.sort_by_key(|c| c.0.clone());
         let p1 = freq[8].1 as f64 / freq[0].1 as f64;
-        assert!(p1 > 1.9 && p1 < 2.0, "zipf p1: {}", p1);
+        assert!(p1 > 1.9 && p1 < 2.1, "zipf p1: {}", p1);
         let p2 = freq[0].1 as f64 / freq[1].1 as f64;
         assert!(p2 > 1.45 && p2 < 1.55, "zipf p2: {}", p2);
     }
@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn keygen_speed() {
         const N: usize = 1_000_0000;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut kgen = KeyGenerator::new_zipfian(8, 0, 1000, 1.0, 0.0);
         let t = Instant::now();
         for _ in 0..N {
@@ -782,7 +782,7 @@ mod tests {
             zipf_hotspot: None,
         };
         let test = |opt: &WorkloadOpt| {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let mut keys = HashSet::<Box<[u8]>>::new();
             let mut workloads: Vec<Workload> =
                 (0..5).map(|t| Workload::new(&opt, Some((t, 5)))).collect();
@@ -822,7 +822,7 @@ mod tests {
         };
 
         let mut workload = Workload::new(&opt, None);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         assert!(matches!(
             workload.kgen.dist,
             KeyDistribution::ZipfianLatest(_, 0, 0)
@@ -872,7 +872,7 @@ mod tests {
         #[allow(unused)]
         let mut get = 0;
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10000000 {
             let op = workload.next(&mut rng);
             match op {
@@ -920,7 +920,7 @@ mod tests {
         let mut get = 0;
         let mut del = 0;
         let mut scan = 0;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10000000 {
             let op = workload.next(&mut rng);
             match op {
