@@ -22,8 +22,5 @@ The [documentation](https://docs.rs/kvbench) provides detailed usage guidelines.
 
 ## Development
 
-This project is being actively developed. The following tasks are currently being worked on:
-
-- Read-modify-write (RMW) support.
-- More built-in stores and benchmark parameters.
-- Enhanced error messages for better ergonomics.
+This project is being actively developed. More built-in stores and benchmark parameters
+are expected to be added.
