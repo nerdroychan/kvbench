@@ -579,19 +579,19 @@ pub(crate) struct KVClient {
 }
 
 impl KVClient {
-    pub(crate) fn new(host: &str, port: &str) -> Option<Self> {
+    pub(crate) fn new(host: &str, port: &str) -> Result<Self, std::io::Error> {
         let addr: String = "".to_string() + host + ":" + port;
         match StdTcpStream::connect(&addr) {
             Ok(s) => {
                 let s2 = s.try_clone().unwrap_or_else(|e| {
                     panic!("KVClient fails to clone a tcp stream: {}", e);
                 });
-                Some(KVClient {
+                Ok(KVClient {
                     request_writer: BufWriter::new(TcpStream::from_std(s)),
                     response_reader: BufReader::new(TcpStream::from_std(s2)),
                 })
             }
-            Err(_) => None,
+            Err(e) => Err(e),
         }
     }
 
@@ -741,7 +741,7 @@ mod tests {
         let (host, port, _) = addr();
         let (stop_tx, grace_rx) = server_run(map, &host, &port, 4);
         let mut client = KVClient::new(&host, &port)
-            .unwrap_or_else(|| panic!("failed to unwrap client instance"));
+            .unwrap_or_else(|e| panic!("Failed to unwrap client instance: {}", e));
 
         client.set(b"foo", b"bar");
         assert_eq!(client.get(b"foo").unwrap(), (*b"bar").into());
@@ -876,7 +876,7 @@ mod tests {
 
         for i in 0..NR_CLIENTS {
             let mut client = KVClient::new(&host, &port)
-                .unwrap_or_else(|| panic!("failed to create client instance"));
+                .unwrap_or_else(|e| panic!("Failed to create client instance: {}", e));
             let batch = requests[i].clone();
             let mut pending: usize = 0;
             for j in 0..NR_BATCHES {
