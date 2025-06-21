@@ -7,11 +7,11 @@
 //! [map]
 //! name = "remotereplicated"
 //!
-//! [[addr]]
+//! [[map.addr]]
 //! host = "..." # host 1
 //! port = "..." # port 1
 //!
-//! [[addr]]
+//! [[map.addr]]
 //! host = "..." # host 2
 //! port = "..." # port 2
 //! ```
@@ -87,9 +87,6 @@ mod tests {
     fn parse() {
         let opt: RemoteReplicatedMapOpt = toml::from_str(
             r#"
-            [map]
-            name = "remotereplicatedmap"
-
             [[addr]]
             host = "127.0.0.1"
             port = "8080"
