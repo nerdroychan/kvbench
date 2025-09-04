@@ -18,7 +18,6 @@
 //!
 //! This store is [`AsyncKVMap`].
 
-use crate::server::KVClient;
 use crate::stores::remote::{RemoteMap, RemoteMapOpt};
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
@@ -29,11 +28,6 @@ use std::sync::atomic::AtomicUsize;
 pub struct RemoteReplicatedMap {
     maps: Vec<RemoteMap>,
     next: AtomicUsize,
-}
-
-pub struct RemoteReplicatedMapHandle {
-    client: KVClient,
-    responder: Rc<dyn AsyncResponder>,
 }
 
 #[derive(Deserialize)]
@@ -60,18 +54,6 @@ impl AsyncKVMap for RemoteReplicatedMap {
         let next = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let map = &self.maps[next % self.maps.len()];
         map.handle(responder)
-    }
-}
-
-impl AsyncKVMapHandle for RemoteReplicatedMapHandle {
-    fn submit(&mut self, requests: &Vec<Request>) {
-        self.client.send_requests(requests);
-    }
-
-    fn drain(&mut self) {
-        for r in self.client.recv_responses().into_iter() {
-            self.responder.callback(r);
-        }
     }
 }
 
