@@ -25,6 +25,7 @@ pub struct RemoteMap {
 pub struct RemoteMapHandle {
     client: KVClient,
     responder: Rc<dyn AsyncResponder>,
+    pending: usize,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +53,7 @@ impl AsyncKVMap for RemoteMap {
         Box::new(RemoteMapHandle {
             client: KVClient::new(&self.host, &self.port).unwrap(),
             responder,
+            pending: 0,
         })
     }
 }
@@ -59,11 +61,15 @@ impl AsyncKVMap for RemoteMap {
 impl AsyncKVMapHandle for RemoteMapHandle {
     fn submit(&mut self, requests: &Vec<Request>) {
         self.client.send_requests(requests);
+        self.pending += requests.len();
     }
 
     fn drain(&mut self) {
-        for r in self.client.recv_responses().into_iter() {
-            self.responder.callback(r);
+        if self.pending > 0 {
+            for r in self.client.recv_responses().into_iter() {
+                self.responder.callback(r);
+                self.pending -= 1;
+            }
         }
     }
 }
