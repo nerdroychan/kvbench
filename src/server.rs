@@ -358,6 +358,7 @@ fn server_worker_new_connection(
     addr: SocketAddr,
     poll: &Poll,
 ) -> (Token, RequestReader, ResponseWriter) {
+    stream.set_nodelay(true).expect("server set_nodelay failed");
     let mut stream = TcpStream::from_std(stream);
     let token = Token(addr.port().into());
     assert!(poll
@@ -583,6 +584,7 @@ impl KVClient {
         let addr: String = "".to_string() + host + ":" + port;
         match StdTcpStream::connect(&addr) {
             Ok(s) => {
+                s.set_nodelay(true).expect("client set_nodelay failed");
                 let s2 = s.try_clone().unwrap_or_else(|e| {
                     panic!("KVClient fails to clone a tcp stream: {}", e);
                 });
