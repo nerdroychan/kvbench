@@ -386,11 +386,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused)]
     fn mix_small_write() {
         let mut rng = rand::rng();
         let mix = Mix::new(5, 95, 0, 0);
         let mut set = 0;
-        #[allow(unused)]
         let mut get = 0;
         for _ in 0..1000000 {
             match mix.next(&mut rng) {
@@ -852,6 +852,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused)]
     fn workload_uniform_write_intensive() {
         let opt = WorkloadOpt {
             set_perc: Some(50),
@@ -869,7 +870,6 @@ mod tests {
         };
         let mut workload = Workload::new(&opt, None);
         let mut set = 0;
-        #[allow(unused)]
         let mut get = 0;
         let mut dist: HashMap<Box<[u8]>, u64> = HashMap::new();
         let mut rng = rand::rng();

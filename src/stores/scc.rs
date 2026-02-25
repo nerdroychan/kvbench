@@ -34,7 +34,7 @@ impl KVMap for SccHashMap {
 
 impl KVMapHandle for SccHashMap {
     fn set(&mut self, key: &[u8], value: &[u8]) {
-        match self.0.entry(key.into()) {
+        match self.0.entry_sync(key.into()) {
             scc::hash_map::Entry::Occupied(mut o) => {
                 *o.get_mut() = value.into();
             }
@@ -45,11 +45,11 @@ impl KVMapHandle for SccHashMap {
     }
 
     fn get(&mut self, key: &[u8]) -> Option<Box<[u8]>> {
-        self.0.read(key, |_, r| r.clone())
+        self.0.read_sync(key, |_, r| r.clone())
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.0.remove(key);
+        self.0.remove_sync(key);
     }
 
     fn scan(&mut self, _key: &[u8], _n: usize) -> Vec<(Box<[u8]>, Box<[u8]>)> {
