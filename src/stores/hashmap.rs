@@ -29,12 +29,12 @@ use serde::Deserialize;
 use std::hash::BuildHasher;
 use std::sync::Arc;
 
-/// Calculate the [`u64`] hash value of a given key using [`AHasher`].
-pub fn hash(key: &[u8]) -> u64 {
+/// Calculate the [`u64`] hash value of a given key using [`FxBuildHasher`].
+fn hash(key: &[u8]) -> u64 {
     rustc_hash::FxBuildHasher.hash_one(key)
 }
 
-pub fn shard(key: &[u8], nr_shards: usize) -> usize {
+fn shard(key: &[u8], nr_shards: usize) -> usize {
     let hash = hash(key);
     usize::try_from(hash).unwrap() % nr_shards
 }

@@ -20,12 +20,29 @@
 //!
 //! This store is [`AsyncKVMap`].
 
-use crate::stores::hashmap::shard;
 use crate::stores::remote::{RemoteMap, RemoteMapOpt};
 use crate::stores::{BenchKVMap, Registry};
 use crate::*;
+use djb_hash::x33a::X33a;
 use serde::Deserialize;
+use std::hash::Hasher;
 use std::rc::Rc;
+
+/// The hash function used by remote sharded map, base on djbhash.
+///
+/// Note that we do not use the same hash function as the existing hash maps, because if the number
+/// of shards in the client and number of shard in the server has a common denominator, it will
+/// cause certain shards not being used at all.
+fn hash(key: &[u8]) -> u64 {
+    let mut hasher = X33a::new();
+    hasher.write(key);
+    return hasher.finish();
+}
+
+fn shard(key: &[u8], nr_shards: usize) -> usize {
+    let hash = hash(key);
+    usize::try_from(hash).unwrap() % nr_shards
+}
 
 pub struct RemoteShardedMap {
     maps: Vec<RemoteMap>,
