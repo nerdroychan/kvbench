@@ -1,4 +1,4 @@
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! A benchmark framework designed for testing key-value stores with easily customizable
 //! workloads.
