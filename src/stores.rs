@@ -117,6 +117,7 @@ pub mod dashmap;
 #[cfg(feature = "flurry")]
 pub mod flurry;
 pub mod hashmap;
+pub mod mpsc;
 pub mod null;
 #[cfg(feature = "papaya")]
 pub mod papaya;

@@ -838,6 +838,13 @@ mod tests {
         simple(map);
     }
 
+    #[test]
+    fn simple_mpsc_hashmap() {
+        let opt = mpsc::MpscHashMapOpt { shards: 4 };
+        let map = BenchKVMap::Async(Arc::new(Box::new(mpsc::MpscHashMap::new(&opt))));
+        simple(map);
+    }
+
     fn batch(map: BenchKVMap) {
         const NR_CLIENTS: usize = 8;
         const NR_BATCHES: usize = 1000;
@@ -989,6 +996,13 @@ mod tests {
     #[test]
     fn batch_rwlock_btreemap() {
         let map = BenchKVMap::Regular(Arc::new(Box::new(btreemap::RwLockBTreeMap::new())));
+        batch(map);
+    }
+
+    #[test]
+    fn batch_mpsc_hashmap() {
+        let opt = mpsc::MpscHashMapOpt { shards: 4 };
+        let map = BenchKVMap::Async(Arc::new(Box::new(mpsc::MpscHashMap::new(&opt))));
         batch(map);
     }
 

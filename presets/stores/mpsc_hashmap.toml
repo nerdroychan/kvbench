@@ -1,0 +1,3 @@
+[map]
+name = "mpsc_hashmap"
+shards = 4
